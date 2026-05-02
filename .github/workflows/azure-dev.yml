@@ -1,7 +1,25 @@
 name: Deploy
 
+# HelpSphere — Story 06.5a Sessão 4 enrichments:
+# - Bicep validation step (lição Decisão #9: CodeRabbit não roda bicep build)
+# - Smoke test pós-deploy (S4.F)
+# - Cleanup workflow_dispatch input (S4.I)
+# - Env vars custom HelpSphere (SQL, Vision, multimodal, seed data)
+# Workflow original: Azure-Samples/azure-search-openai-demo @ SHA 95ce0c9...
+
 on:
   workflow_dispatch:
+    inputs:
+      destroy:
+        description: 'Destruir recursos após deploy (azd down --purge)'
+        required: false
+        default: false
+        type: boolean
+      skip_smoke:
+        description: 'Pular smoke test pós-deploy'
+        required: false
+        default: false
+        type: boolean
   push:
     # Run when commits are pushed to mainline branch (main or master)
     # Set this to the mainline branch you are using
@@ -122,6 +140,12 @@ jobs:
       USE_AGENTIC_KNOWLEDGEBASE: ${{ vars.USE_AGENTIC_KNOWLEDGEBASE }}
       USE_WEB_SOURCE: ${{ vars.USE_WEB_SOURCE }}
       USE_SHAREPOINT_SOURCE: ${{ vars.USE_SHAREPOINT_SOURCE }}
+      # HelpSphere — Story 06.5a Sessão 2.3 (SQL access) + Sessão 4 (env vars)
+      AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
+      AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
+      AZURE_SQL_DATABASE_NAME: ${{ vars.AZURE_SQL_DATABASE_NAME }}
+      USE_SQL_SERVER: ${{ vars.USE_SQL_SERVER }}
+      AZURE_LOAD_SEED_DATA: ${{ vars.AZURE_LOAD_SEED_DATA }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -133,6 +157,18 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 20
+
+      # HelpSphere — Story 06.5a Sessão 4 (Decisão #9):
+      # Bicep validation ANTES de provision para pegar bugs determinísticos
+      # como BCP053/BCP037/max-outputs (que quebraram a Sessão 2.3 e geraram
+      # a necessidade da Sessão 3.5). CodeRabbit não roda bicep build.
+      # Ubuntu runner já tem az CLI preinstalado — só precisa instalar bicep.
+      - name: Validate Bicep (lição Decisão #9)
+        run: |
+          az bicep install
+          az bicep build --file infra/main.bicep --stdout > /dev/null
+          echo "✅ Bicep build limpo — sem erros nem warnings críticos"
+        shell: bash
 
       - name: Log in with Azure (Federated Credentials)
         run: |
@@ -151,3 +187,36 @@ jobs:
 
       - name: Deploy Application
         run: azd deploy --no-prompt
+
+      # HelpSphere — Story 06.5a Sessão 4 (S4.F): smoke test pós-deploy
+      # Valida que o backend responde no endpoint público.
+      # Endpoints autenticados (/api/tickets/*) precisam de JWT — testados
+      # em pytest re-baselined (S4.G) com token via az account get-access-token.
+      - name: Smoke test (HelpSphere S4.F)
+        if: success() && inputs.skip_smoke != true
+        run: |
+          BACKEND_URI=$(azd env get-values | grep '^BACKEND_URI=' | cut -d'=' -f2- | tr -d '"')
+          if [ -z "$BACKEND_URI" ]; then
+            echo "❌ BACKEND_URI vazio — provision/deploy pode ter falhado"
+            azd env get-values
+            exit 1
+          fi
+          echo "✅ Backend URI: $BACKEND_URI"
+          STATUS=$(curl -ksSL --max-time 30 -o /dev/null -w "%{http_code}" "$BACKEND_URI" || echo "000")
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "302" ] && [ "$STATUS" != "401" ]; then
+            echo "❌ Smoke test falhou — HTTP $STATUS (esperado 200/302/401 com auth)"
+            exit 1
+          fi
+          echo "✅ Smoke test OK — HTTP $STATUS"
+        shell: bash
+
+      # HelpSphere — Story 06.5a Sessão 4 (S4.I): cleanup elegante via Actions
+      # Triggered manualmente via workflow_dispatch input destroy=true.
+      # Cumpre Decisão #5 (FinOps) + regra de ouro D06 (DELETE RG ao final).
+      - name: Destroy resources (HelpSphere S4.I — cleanup)
+        if: always() && inputs.destroy == true
+        run: |
+          echo "🗑️  Iniciando azd down --force --purge..."
+          azd down --force --purge --no-prompt
+          echo "✅ azd down completo"
+        shell: bash
