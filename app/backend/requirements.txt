@@ -416,7 +416,7 @@ werkzeug==3.1.8
     #   azure-functions
     #   flask
     #   quart
-wrapt==1.16.0
+wrapt==2.1.2
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-aiohttp-client
