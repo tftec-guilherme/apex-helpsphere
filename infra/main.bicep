@@ -1149,6 +1149,12 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
         autoPauseDelay: 60
         minCapacity: '0.5'
         maxSizeBytes: 2147483648 // 2 GiB — suficiente para HelpSphere de aula
+        // Sessão 4 (Decisão #11): zone redundancy explicitamente false.
+        // Default do AVM em westus3 tenta criar com zone redundancy; sub Partner
+        // não suporta na sub atual ("ProvisioningDisabled: Provisioning of zone
+        // redundant database/pool is not supported for your current request").
+        // Para ambientes prod com sub Enterprise + capacidade adequada, alterar para true.
+        zoneRedundant: false
       }
     ]
     firewallRules: [
