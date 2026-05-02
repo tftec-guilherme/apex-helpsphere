@@ -1,0 +1,122 @@
+.layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.main {
+    display: flex;
+    flex: 1;
+    min-height: 0; /* allow inner scroll areas to work inside flex container */
+}
+
+.header {
+    background-color: var(--apex-primary);
+    color: var(--apex-text-on-dark);
+    box-shadow: var(--apex-shadow-md);
+}
+
+.headerContainer {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    position: relative;
+}
+
+.headerTitleContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--apex-text-on-dark);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.headerLogo {
+    color: var(--apex-text-on-dark);
+    flex-shrink: 0;
+}
+
+.headerBrandText {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.headerTitle {
+    margin: 0;
+    font-weight: 600;
+    font-size: 1.15rem;
+    letter-spacing: 0.02em;
+}
+
+.headerTagline {
+    display: none;
+    color: rgba(242, 242, 242, 0.72);
+    font-size: 0.78rem;
+    font-weight: 400;
+    margin-top: 0.1rem;
+}
+
+.headerNav {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.navLink {
+    color: rgba(242, 242, 242, 0.78);
+    text-decoration: none;
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--apex-radius-sm);
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition:
+        background-color 150ms ease,
+        color 150ms ease;
+}
+
+.navLink:hover {
+    color: var(--apex-text-on-dark);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.navLinkActive {
+    color: var(--apex-text-on-dark);
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.navLinkActive:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.loginMenuContainer {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+@media (min-width: 600px) {
+    .headerTagline {
+        display: inline;
+    }
+}
+
+@media (max-width: 600px) {
+    .headerTitle {
+        font-size: 1rem;
+    }
+
+    .navLink {
+        padding: 0.4rem 0.55rem;
+        font-size: 0.85rem;
+    }
+
+    .headerContainer {
+        padding: 0.6rem 0.85rem;
+        gap: 0.6rem;
+    }
+}

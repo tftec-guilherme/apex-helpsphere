@@ -1,0 +1,244 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 2rem;
+    color: var(--apex-text-primary);
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--apex-text-primary);
+    letter-spacing: -0.01em;
+}
+
+.subtitle {
+    margin: 0;
+    color: var(--apex-text-secondary);
+    font-size: 0.95rem;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    background-color: var(--apex-surface);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    padding: 0.85rem 1rem;
+    box-shadow: var(--apex-shadow-sm);
+}
+
+.searchWrapper {
+    flex: 1 1 280px;
+    min-width: 240px;
+}
+
+.searchInput {
+    width: 100%;
+}
+
+.filtersGroup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+
+.filterLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.78rem;
+    color: var(--apex-text-secondary);
+}
+
+.filterLabelText {
+    font-weight: 500;
+    color: var(--apex-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+}
+
+.dropdown {
+    min-width: 11rem;
+}
+
+.clearButton {
+    align-self: flex-end;
+}
+
+.errorBar {
+    border-radius: var(--apex-radius-md);
+}
+
+.tableWrapper {
+    background-color: var(--apex-surface);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    overflow: hidden;
+    box-shadow: var(--apex-shadow-sm);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.table thead {
+    background-color: var(--apex-surface-alt);
+}
+
+.table th {
+    text-align: left;
+    padding: 0.75rem 0.85rem;
+    font-weight: 600;
+    color: var(--apex-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    border-bottom: 1px solid var(--apex-border);
+    white-space: nowrap;
+}
+
+.table td {
+    padding: 0.7rem 0.85rem;
+    border-bottom: 1px solid var(--apex-border);
+    color: var(--apex-text-primary);
+    vertical-align: middle;
+}
+
+.row {
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.row:hover {
+    background-color: var(--apex-surface-alt);
+}
+
+.row:focus-visible {
+    outline: 2px solid var(--apex-primary);
+    outline-offset: -2px;
+    background-color: var(--apex-surface-alt);
+}
+
+.row:last-child td {
+    border-bottom: none;
+}
+
+.colId {
+    width: 4.5rem;
+    color: var(--apex-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.subject {
+    max-width: 38rem;
+}
+
+.subjectText {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.colDate {
+    width: 8rem;
+    color: var(--apex-text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem 1rem;
+    background-color: var(--apex-surface);
+    border: 1px dashed var(--apex-border-strong);
+    border-radius: var(--apex-radius-md);
+    color: var(--apex-text-secondary);
+    text-align: center;
+}
+
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    color: var(--apex-text-secondary);
+    font-size: 0.88rem;
+}
+
+.paginationInfo {
+    color: var(--apex-text-muted);
+}
+
+.paginationControls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pageIndicator {
+    min-width: 7rem;
+    text-align: center;
+    color: var(--apex-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.skeletonRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 0.85rem;
+    border-bottom: 1px solid var(--apex-border);
+}
+
+.skeletonRow:last-child {
+    border-bottom: none;
+}
+
+@media (max-width: 768px) {
+    .page {
+        padding: 1rem 0.85rem 1.5rem;
+        gap: 1rem;
+    }
+
+    .title {
+        font-size: 1.35rem;
+    }
+
+    .colId,
+    .colDate {
+        display: none;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.55rem 0.6rem;
+    }
+
+    .subject {
+        max-width: none;
+    }
+}

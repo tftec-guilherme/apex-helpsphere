@@ -1,0 +1,41 @@
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--apex-radius-sm);
+    background-color: var(--apex-surface-alt);
+    border: 1px solid var(--apex-border);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--apex-text-primary);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.label {
+    line-height: 1;
+}
+
+.open {
+    background-color: var(--apex-status-open);
+}
+
+.inProgress {
+    background-color: var(--apex-status-inprogress);
+}
+
+.resolved {
+    background-color: var(--apex-status-resolved);
+}
+
+.escalated {
+    background-color: var(--apex-status-escalated);
+}

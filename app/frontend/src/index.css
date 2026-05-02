@@ -1,0 +1,94 @@
+/*
+ * HelpSphere — Apex Retail design tokens (Q2-2026)
+ *
+ * Aplicados em paralelo ao Fluent UI webLightTheme: tokens são CSS variables
+ * usadas pelas .module.css das páginas/layout HelpSphere. Componentes Fluent
+ * permanecem usando o tema oficial (preservação do padrão Microsoft).
+ */
+:root {
+    --apex-primary: #0B2545;
+    --apex-primary-hover: #13315C;
+    --apex-secondary: #1E3A5F;
+    --apex-accent: #EF4444;
+    --apex-accent-hover: #DC2626;
+    --apex-bg: #F8FAFC;
+    --apex-surface: #FFFFFF;
+    --apex-surface-alt: #F1F5F9;
+    --apex-border: #E2E8F0;
+    --apex-border-strong: #CBD5E1;
+    --apex-text-primary: #0F172A;
+    --apex-text-secondary: #475569;
+    --apex-text-muted: #64748B;
+    --apex-text-on-dark: #F2F2F2;
+    --apex-status-open: #2563EB;
+    --apex-status-inprogress: #F59E0B;
+    --apex-status-resolved: #10B981;
+    --apex-status-escalated: #EF4444;
+    --apex-priority-low: #94A3B8;
+    --apex-priority-medium: #3B82F6;
+    --apex-priority-high: #F97316;
+    --apex-priority-critical: #DC2626;
+    --apex-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --apex-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+    --apex-radius-sm: 4px;
+    --apex-radius-md: 8px;
+    --apex-radius-lg: 12px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    height: 100%;
+    background: var(--apex-bg);
+    font-size: 12px; /* Root font size for 320px width screens */
+    font-family:
+        "Segoe UI",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Roboto",
+        "Oxygen",
+        "Ubuntu",
+        "Cantarell",
+        "Fira Sans",
+        "Droid Sans",
+        "Helvetica Neue",
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+#root {
+    height: 100%;
+}
+
+@media (min-width: 480px) {
+    html {
+        font-size: 13px; /* Slightly larger font size for larger phones */
+    }
+}
+
+@media (min-width: 600px) {
+    html {
+        font-size: 14px; /* Adjust for small tablets and large phones in landscape */
+    }
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 15px; /* Suitable for medium tablets */
+    }
+}
+
+@media (min-width: 992px) {
+    html {
+        font-size: 16px; /* Standard size for desktops */
+    }
+}
