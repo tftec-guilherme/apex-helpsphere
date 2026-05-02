@@ -354,7 +354,7 @@ quart==0.20.0
     #   quart-cors
 quart-cors==0.7.0
     # via -r requirements.in
-regex==2025.7.34
+regex==2026.4.4
     # via tiktoken
 requests==2.33.0
     # via
