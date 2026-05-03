@@ -185,6 +185,15 @@ jobs:
       # vazio e pulava silenciosamente, deixando o backend MI sem SQL grant.
       - name: Persist env to azd environment (Decisão #15)
         run: |
+          # Runner é fresh a cada run — azd env precisa ser criado antes
+          # do `azd env set` (que falha com "environment does not exist").
+          # `|| true` torna idempotente (sucesso se env já existe).
+          azd env new "$AZURE_ENV_NAME" \
+            --location "$AZURE_LOCATION" \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --no-prompt 2>/dev/null || true
+          azd env select "$AZURE_ENV_NAME"
+
           azd env set USE_SQL_SERVER "${USE_SQL_SERVER:-true}"
           azd env set RESTORE_COGNITIVE_SERVICES "${RESTORE_COGNITIVE_SERVICES:-true}"
           azd env set USE_MULTIMODAL "${USE_MULTIMODAL:-true}"
