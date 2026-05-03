@@ -178,6 +178,26 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
+      # HelpSphere — Story 06.5a Sessão 5 (Decisão #15): persistir env vars
+      # críticas no azd env file ANTES do provision. azd hooks (preprovision,
+      # postprovision como sql_init.sh) leem APENAS o azd env, não o shell env
+      # do GitHub Actions. Sem esta etapa, sql_init.sh recebia USE_SQL_SERVER
+      # vazio e pulava silenciosamente, deixando o backend MI sem SQL grant.
+      - name: Persist env to azd environment (Decisão #15)
+        run: |
+          azd env set USE_SQL_SERVER "${USE_SQL_SERVER:-true}"
+          azd env set RESTORE_COGNITIVE_SERVICES "${RESTORE_COGNITIVE_SERVICES:-true}"
+          azd env set USE_MULTIMODAL "${USE_MULTIMODAL:-true}"
+          azd env set AZURE_LOAD_SEED_DATA "${AZURE_LOAD_SEED_DATA:-true}"
+          azd env set DEPLOYMENT_TARGET "${DEPLOYMENT_TARGET:-containerapps}"
+          azd env set AZURE_USE_AUTHENTICATION "${AZURE_USE_AUTHENTICATION:-false}"
+          azd env set AZURE_SQL_DATABASE_NAME "${AZURE_SQL_DATABASE_NAME:-helpsphere}"
+          azd env set AZURE_SQL_AAD_ADMIN_GROUP_NAME "${AZURE_SQL_AAD_ADMIN_GROUP_NAME}"
+          azd env set AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID "${AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID}"
+          echo "✅ Critical env vars persistidos ao azd env (USE_SQL_SERVER, AZURE_LOAD_SEED_DATA, etc)"
+          azd env get-values | grep -E '^(USE_SQL_SERVER|RESTORE_COGNITIVE|USE_MULTIMODAL|AZURE_LOAD_SEED|DEPLOYMENT_TARGET|AZURE_USE_AUTH|AZURE_SQL_)' || true
+        shell: bash
+
       - name: Provision Infrastructure
         run: azd provision --no-prompt
         env:
@@ -202,12 +222,24 @@ jobs:
             exit 1
           fi
           echo "✅ Backend URI: $BACKEND_URI"
-          STATUS=$(curl -ksSL --max-time 30 -o /dev/null -w "%{http_code}" "$BACKEND_URI" || echo "000")
-          if [ "$STATUS" != "200" ] && [ "$STATUS" != "302" ] && [ "$STATUS" != "401" ]; then
-            echo "❌ Smoke test falhou — HTTP $STATUS (esperado 200/302/401 com auth)"
-            exit 1
-          fi
-          echo "✅ Smoke test OK — HTTP $STATUS"
+          # Decisão #15 (Sessão 5): retry loop ~7min total para tolerar cold start
+          # de ACA (criação de réplica + warm-up gunicorn workers + aioodbc pool
+          # + aquisição de token MI para SQL). Sem retry, smoke test rodando
+          # imediatamente após azd deploy frequentemente pega container em
+          # state "Activating", não "Running" → curl timeout 30s → false negative.
+          ATTEMPTS=15
+          STATUS=000
+          for i in $(seq 1 $ATTEMPTS); do
+            STATUS=$(curl -ksSL --max-time 10 -o /dev/null -w "%{http_code}" "$BACKEND_URI" || echo "000")
+            echo "[smoke attempt $i/$ATTEMPTS] HTTP $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "401" ]; then
+              echo "✅ Smoke test OK — HTTP $STATUS após $i tentativa(s)"
+              exit 0
+            fi
+            [ $i -lt $ATTEMPTS ] && sleep 20
+          done
+          echo "❌ Smoke test falhou após $ATTEMPTS tentativas (~7min) — última resposta HTTP $STATUS"
+          exit 1
         shell: bash
 
       # HelpSphere — Story 06.5a Sessão 4 (S4.I): cleanup elegante via Actions
