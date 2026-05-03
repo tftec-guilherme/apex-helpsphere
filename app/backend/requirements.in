@@ -13,7 +13,7 @@ azure-storage-blob
 azure-storage-file-datalake
 # HelpSphere SQL access (Story 06.5a Sessão 2.3) — async via aioodbc + MS ODBC 18
 aioodbc>=0.5.0
-pyodbc>=5.1.0
+pyodbc>=5.2.0  # 5.2.0+ tem wheel cp313 manylinux (Decisão #14, Sessão 5)
 uvicorn
 aiohttp
 azure-monitor-opentelemetry

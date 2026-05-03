@@ -452,6 +452,66 @@ A extração da Decisão #10 foi via `git ls-files | xargs cp` (subtree split re
 
 ---
 
+## Decisão #14 — Bump `pyodbc` 5.1.0 → 5.2.0 (Sessão 5, run #8 falhou)
+
+### Contexto
+
+Run #8 do `azure-dev.yml` (commit `0b62fdd` com fix da Decisão #13) avançou bem além do #7: prebuild do frontend ✅ (`package.json` restaurado funcionou), Provision idempotente ✅ (~1min vs 11min do run #7), `azd deploy` iniciou o build do container backend. Falhou no step **Deploy Application** durante `python -m pip install -r requirements.txt` dentro do Docker:
+
+```
+src/params.cpp:250:36: error: too few arguments to function
+  '_PyLong_AsByteArray(PyLongObject*, unsigned char*, size_t, int, int, int)'
+ERROR: Failed building wheel for pyodbc
+```
+
+`pyodbc==5.1.0` tentou compilar do source porque não há wheel `cp313` publicado para essa versão. A compilação falhou: assinatura de `_PyLong_AsByteArray` mudou em CPython 3.13.
+
+### Causa raiz
+
+Dois fatores combinados:
+
+| Fator | Origem | Defesa |
+|---|---|---|
+| Dockerfile usa `python:3.13-bookworm` | **Herdado do upstream MS** (`Azure-Samples/azure-search-openai-demo @ 95ce0c9`). Verificado: o Dockerfile original já é 3.13. | Não mudar — manter alinhado com upstream para facilitar rebases futuros |
+| `pyodbc==5.1.0` (sem wheel cp313) | **Adicionado pela Sessão 2.3** (driver SQL Server). Upstream MS NÃO usa pyodbc (template é Search+OpenAI puro, sem SQL Server). | **Bump trivial:** pyodbc 5.2.0 (lançado 2024-10) e 5.3.0 (latest) ambos têm wheel `cp313-cp313-manylinux_2_17_x86_64`. |
+
+`pyodbc 5.2.0` matrix de wheels (verificado via PyPI JSON API):
+
+```
+pyodbc-5.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl  ✓ (alvo: Debian 12 = glibc 2.36)
+pyodbc-5.2.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+pyodbc-5.2.0-cp313-cp313-musllinux_*  / win* / macos*
+```
+
+### Decisão
+
+**Bump `pyodbc>=5.2.0` em `requirements.in` + `pyodbc==5.2.0` em `requirements.txt`** (compiled).
+
+### Defesa arquitetural
+
+| Aspecto | Decisão | Anti-padrão rejeitado |
+|---|---|---|
+| Versão escolhida | **5.2.0** (não 5.3.0 latest) | ~6 meses extras de track record vs 5.3.0; bump mínimo (1 minor); evita "pegar latest sem necessidade" |
+| Pin Python | **Manter 3.13** (igual upstream) | Pin 3.12 → divergência do upstream → conflitos em rebase + sinaliza falsamente que 3.13 não funciona |
+| Refactor backend | **Não** — pyodbc continua sendo o driver | Trocar por `aiomssql`/`asyncpg` seria over-engineering; pyodbc 5.2 funciona nativamente em 3.13 |
+
+### Lição pedagógica (PARA-O-ALUNO.md S4.H — surpresa #9)
+
+**Quando você adiciona uma nova dependência Python a um Dockerfile baseado em uma imagem Python recente, audite proativamente se a dep tem wheel para essa versão de CPython.** Sem wheel binário, o pip cai em compile do source — e source code pode não compilar em CPython recente devido a ABI changes (ex: `_PyLong_AsByteArray` em 3.13).
+
+Comando para auditar:
+```sh
+curl -s https://pypi.org/pypi/<package>/json | jq '.urls[] | select(.filename | contains("cp313")) | .filename'
+```
+
+### Implementação
+
+- `app/backend/requirements.in` linha 16: `pyodbc>=5.1.0` → `pyodbc>=5.2.0  # 5.2.0+ tem wheel cp313 manylinux (Decisão #14, Sessão 5)`
+- `app/backend/requirements.txt` linha 341: `pyodbc==5.1.0` → `pyodbc==5.2.0`
+- Commit em `apex-helpsphere/main` (sem `[skip ci]` — disparar run #9)
+
+---
+
 ## Audit trail
 
 | Data | Autor | Decisão registrada |
@@ -463,4 +523,5 @@ A extração da Decisão #10 foi via `git ls-files | xargs cp` (subtree split re
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3 concluída em 4 batches (B1-B4).** Decisões #6, #7, #8 cravadas: (#6) Fluent UI v9 preservado + paleta Apex via CSS variables — defesa: rebase futuro vs upstream trivial; (#7) `/`=Chat upstream **preservado** + 2 rotas lazy `/tickets` e `/tickets/:ticketId` adicionadas — defesa: RAG do MS necessário no Lab Inter/Final; (#8) `tenant_id` resolvido server-side via JWT, frontend exibe read-only — defesa: zero caminho de bypass, audit-friendly. ~2.840 linhas adicionadas em 4 commits + 3 PNGs sintéticos pt-BR para Vision OCR. Próximo: Sessão 4 (smoke `azd up` + re-baseline pytest snapshots + defesa arquitetural completa no README + handoff para @architect *qa-gate). |
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3.5 concluída — bug fix Bicep SQL Server AVM compatibility.** Decisão #9 cravada. 5 patches no `infra/main.bicep` (P1-P4) + audit trail (P5). Bicep compila ✅. Lição aprendida documentada: CodeRabbit não roda `bicep build` — recomendação backlog: adicionar step CI. Próximo: retomar Sessão 4 a partir de S4.2 (env vars adicionais identificadas: `AZURE_DOCUMENTINTELLIGENCE_LOCATION`, `AZURE_OPENAI_LOCATION`). |
 | 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #13 cravada (run #7 falhou em Deploy Application).** Provision OK ✅ (15 recursos em westus3, Cog Services restored), mas hook `prebuild` do `azd deploy` falhou com `npm enoent app/frontend/package.json`. Causa raiz: `.gitignore` raiz `azure-retail` (L42-43) ignora `package.json` globalmente → `git ls-files` da extração #10 perdeu `package.json` + `package-lock.json` do helpsphere/frontend. Fix: restaurar 2 arquivos do disco azure-retail → apex-helpsphere local, commit, push, run #8. Lição pedagógica: surpresa #8 para PARA-O-ALUNO.md (auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo). |
+| 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #14 cravada (run #8 falhou em Deploy Application).** Frontend prebuild OK ✅ (fix #13 funcionou), Provision idempotente OK ✅ (~1min), mas `pip install` no Docker falhou em **`pyodbc==5.1.0`** porque não há wheel `cp313` publicado e o source não compila em CPython 3.13 (`_PyLong_AsByteArray` mudou de assinatura). Causa raiz combinada: Dockerfile herda `python:3.13-bookworm` do upstream MS (que NÃO usa pyodbc — adicionamos na Sessão 2.3 sem revalidar wheel matrix). Fix: bump `pyodbc>=5.2.0` em `requirements.in` + `pyodbc==5.2.0` em `requirements.txt` (5.2.0 tem `cp313-cp313-manylinux_2_17_x86_64.whl` pronto). Decisão consciente de manter Python 3.13 alinhado com upstream. Lição pedagógica: surpresa #9 para PARA-O-ALUNO.md (auditar `curl pypi.org/.../json \| jq '.urls[] \| select(.filename \| contains("cp313"))'` antes de adicionar dep Python a um Dockerfile). |
 | 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |
