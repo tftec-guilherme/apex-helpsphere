@@ -400,6 +400,58 @@ fi
 
 ---
 
+## Decisão #13 — Restaurar `package.json` perdido na extração (Sessão 5, run #7 falhou)
+
+### Contexto
+
+Run #7 do `azure-dev.yml` no `apex-helpsphere` (commit `6f3971a`, primeiro run com todos os 7 fixes acumulados das Decisões #10/#11/#12) progrediu até o step **Deploy Application (azd deploy)** e falhou imediatamente com:
+
+```
+ERROR: failed building service 'backend': prebuild hook failed exit 254
+npm error enoent /home/runner/work/apex-helpsphere/apex-helpsphere/app/frontend/package.json
+```
+
+`Validate Bicep` ✅, OIDC login ✅, **Provision Infrastructure** ✅ (15 recursos provisionados em westus3, incluindo Cog Services restored via `RESTORE_COGNITIVE_SERVICES=true`). Falha **antes** mesmo do prepdocs do run #6-bis.
+
+### Causa raiz
+
+`.gitignore` na raiz do repo `azure-retail` (monorepo origem da extração da Decisão #10) tem nas linhas 42-43:
+
+```gitignore
+# Node (root)
+package.json
+package-lock.json
+```
+
+Regra **global** intencional para evitar commit acidental de Node.js stuff dos labs de outras disciplinas (D04 `lab-avancado-dashboard` usa Node), mas se aplica recursivamente a **TODOS** os subdiretórios — incluindo `Disciplina_06_*/03_Aplicações/helpsphere/app/frontend/`.
+
+A extração da Decisão #10 foi via `git ls-files | xargs cp` (subtree split rejeitado por chars Unicode em paths Windows). Como `package.json` e `package-lock.json` nunca estiveram trackados em `azure-retail`, **não foram listados pelo `ls-files` e não foram copiados** para o `apex-helpsphere`. Os arquivos existem em disco no checkout local, mas só na working copy.
+
+### Decisão
+
+**Restaurar `app/frontend/package.json` + `app/frontend/package-lock.json`** copiando do disco do `azure-retail` (working copy não-trackada) diretamente para o `apex-helpsphere`, e commitar lá. Repo `apex-helpsphere` foi vendorado do template MS upstream — `.gitignore` próprio NÃO bloqueia esses arquivos (verificado via `git check-ignore`).
+
+### Defesa arquitetural
+
+| Aspecto | Decisão | Anti-padrão rejeitado |
+|---|---|---|
+| Fonte | Working copy local `azure-retail` (já tem qualquer customização Sessão 3) | Re-fetch do upstream MS (perderia paleta Apex CSS / rotas /tickets) |
+| Local fix | `.gitignore` raiz `azure-retail` permanece como está | Remover regra global → contaminação cross-disciplina |
+| Long-term | Audit checklist na extração de qualquer subprojeto: `git ls-files vs ls-files --others --ignored --exclude-standard` para detectar arquivos legítimos perdidos por gitignore upstream | Checklist informal só |
+
+### Lição pedagógica (PARA-O-ALUNO.md S4.H)
+
+**Surpresa #8 — Quando você extrair código de um monorepo, o `.gitignore` do monorepo é uma mina terrestre invisível.** Sempre rode `git ls-files --others --ignored --exclude-standard <subdir>` antes da extração para auditar arquivos legítimos que foram silenciosamente ignorados.
+
+### Implementação
+
+- `cp` de 2 arquivos do `azure-retail/Disciplina_06_*/03_Aplicações/helpsphere/app/frontend/` para `apex-helpsphere/app/frontend/`
+- `package.json`: 1.495 bytes (Vite + React 19.2.4 + Fluent UI v9.73.3 + MSAL + i18next, customizações Sessão 3 preservadas)
+- `package-lock.json`: 239.936 bytes
+- Commit em `apex-helpsphere/main` (sem `[skip ci]` desta vez — queremos disparar run #8)
+
+---
+
 ## Audit trail
 
 | Data | Autor | Decisão registrada |
@@ -410,4 +462,5 @@ fi
 | 2026-05-01 | @architect (Aria) review + @aiox-master (Orion) consolidação + professor revisão | **Decisão #5 cravada — Stack Sessão 2.3 production-grade.** Recomendações iniciais Aria foram **revisadas pelo professor para padrão production-grade defensável**: (a) Container Apps (não App Service), (b) tenant isolation via **JWT claim** (não header arbitrário), (c) `@authenticated` **obrigatório** em todos endpoints (não público por default), (d) **Entra Group** como SQL AAD admin (não user pessoal), (e) seeds automático com flag (mantida). Próximo: @dev implementa Sessão 2.3 com essas decisões. |
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3 concluída em 4 batches (B1-B4).** Decisões #6, #7, #8 cravadas: (#6) Fluent UI v9 preservado + paleta Apex via CSS variables — defesa: rebase futuro vs upstream trivial; (#7) `/`=Chat upstream **preservado** + 2 rotas lazy `/tickets` e `/tickets/:ticketId` adicionadas — defesa: RAG do MS necessário no Lab Inter/Final; (#8) `tenant_id` resolvido server-side via JWT, frontend exibe read-only — defesa: zero caminho de bypass, audit-friendly. ~2.840 linhas adicionadas em 4 commits + 3 PNGs sintéticos pt-BR para Vision OCR. Próximo: Sessão 4 (smoke `azd up` + re-baseline pytest snapshots + defesa arquitetural completa no README + handoff para @architect *qa-gate). |
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3.5 concluída — bug fix Bicep SQL Server AVM compatibility.** Decisão #9 cravada. 5 patches no `infra/main.bicep` (P1-P4) + audit trail (P5). Bicep compila ✅. Lição aprendida documentada: CodeRabbit não roda `bicep build` — recomendação backlog: adicionar step CI. Próximo: retomar Sessão 4 a partir de S4.2 (env vars adicionais identificadas: `AZURE_DOCUMENTINTELLIGENCE_LOCATION`, `AZURE_OPENAI_LOCATION`). |
+| 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #13 cravada (run #7 falhou em Deploy Application).** Provision OK ✅ (15 recursos em westus3, Cog Services restored), mas hook `prebuild` do `azd deploy` falhou com `npm enoent app/frontend/package.json`. Causa raiz: `.gitignore` raiz `azure-retail` (L42-43) ignora `package.json` globalmente → `git ls-files` da extração #10 perdeu `package.json` + `package-lock.json` do helpsphere/frontend. Fix: restaurar 2 arquivos do disco azure-retail → apex-helpsphere local, commit, push, run #8. Lição pedagógica: surpresa #8 para PARA-O-ALUNO.md (auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo). |
 | 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |
