@@ -158,6 +158,24 @@ jobs:
         with:
           node-version: 20
 
+      # HelpSphere — Story 06.5a Sessão 5 (Decisão #15 follow-up — run #11 falhou):
+      # sql_init.py (postprovision hook) roda NO RUNNER, não no backend container.
+      # Dockerfile do backend já instala msodbcsql18, mas o runner GH Actions não
+      # tem. Sem este step, sql_init.py crasha com:
+      #   pyodbc.Error: [01000] Can't open lib 'ODBC Driver 18 for SQL Server'
+      # Replica exatamente o que o Dockerfile do backend faz (Sessão 2.3).
+      - name: Install ODBC Driver 18 for SQL Server (Decisão #15)
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev
+          echo "✅ ODBC Driver 18 instalado no runner"
+          odbcinst -q -d -n "ODBC Driver 18 for SQL Server" || true
+        shell: bash
+
       # HelpSphere — Story 06.5a Sessão 4 (Decisão #9):
       # Bicep validation ANTES de provision para pegar bugs determinísticos
       # como BCP053/BCP037/max-outputs (que quebraram a Sessão 2.3 e geraram
