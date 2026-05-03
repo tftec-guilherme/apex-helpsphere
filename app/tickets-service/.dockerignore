@@ -1,0 +1,37 @@
+# HelpSphere tickets-service — .dockerignore (Story 06.5c.1, T8.4)
+# Reduz contexto do docker build para o mínimo essencial.
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE/editor
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+**/*.suo
+
+# Tests (não vão pra runtime)
+tests/
+
+# Docs e config local
+**/*.md
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/secrets.json
+
+# Git
+**/.git/
+**/.gitignore
+**/.gitattributes
+
+# Docker (este próprio arquivo + Dockerfile)
+Dockerfile
+.dockerignore
+
+# CI
+**/.github/

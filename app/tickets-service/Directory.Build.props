@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    HelpSphere tickets-service — project-wide compiler settings (Story 06.5c.1, T2)
+    Defesa: production-grade .NET 10 LTS — qualquer warning vira erro de build.
+    Decisão #5 D06: zero atalho pedagógico em código defensável a comitê.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>

@@ -157,3 +157,17 @@ app/functions/*/requirements.txt
 data/**/*.md5
 
 .DS_Store
+
+# .NET (Story 06.5c.1+) — tickets-service e futuros .NET projects
+**/bin/
+**/obj/
+**/*.user
+**/*.suo
+**/.vs/
+**/TestResults/
+**/coverage.*
+**/*.coverage
+**/*.coveragexml
+**/[Pp]ublish/
+**/[Pp]ublishProfiles/
+**/*.publishsettings
