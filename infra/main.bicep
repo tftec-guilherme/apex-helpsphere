@@ -1135,6 +1135,16 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
       principalType: 'Group'
       azureADOnlyAuthentication: true
     }
+    // Decisão #15.5 (Sessão 5, opção B): SystemAssigned MI no SQL Server +
+    // grant manual de Directory Reader (one-time). Necessário para que SQL
+    // consiga resolver nomes de External Principals (User Managed Identities)
+    // quando sql_init.py executa CREATE USER FROM EXTERNAL PROVIDER.
+    // Sem isso: error 33134 "Server identity is not configured".
+    // Após este Bicep deploy, manualmente:
+    //   ./scripts/grant_sql_directory_reader.sh (ver script + DECISION-LOG #15.5)
+    managedIdentities: {
+      systemAssigned: true
+    }
     minimalTlsVersion: '1.2'
     publicNetworkAccess: publicNetworkAccess
     databases: [
@@ -1703,6 +1713,8 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = deploymentTarget == 'container
 // Sessão 3.5: FQDN via environment().suffixes.sqlServerHostname — Decisão #9
 output AZURE_SQL_SERVER string = useSqlServer && !empty(sqlAadAdminGroupObjectId) ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
 output AZURE_SQL_DATABASE string = useSqlServer ? sqlDatabaseName : ''
+// Decisão #15.5: principalId do System MI do SQL Server, para grant manual de Directory Reader
+output AZURE_SQL_SERVER_PRINCIPAL_ID string = useSqlServer && !empty(sqlAadAdminGroupObjectId) ? sqlServer!.outputs.systemAssignedMIPrincipalId : ''
 output AZURE_SQL_BACKEND_MI_NAME string = useSqlServer
   ? ((deploymentTarget == 'containerapps')
       ? acaIdentityName
