@@ -149,10 +149,25 @@ def main() -> int:
             print("✅ Schema aplicado (3 tabelas + 2 índices + 1 trigger)")
 
             if load_seed_data:
+                # Decisão #15.7 (debug FK violation): print row count após cada seed
+                table_for_seed = {
+                    "tenants.sql": "dbo.tbl_tenants",
+                    "tickets.sql": "dbo.tbl_tickets",
+                    "comments.sql": "dbo.tbl_comments",
+                }
                 for seed_name in ("tenants.sql", "tickets.sql", "comments.sql"):
                     seed_file = DATA_DIR / "seed" / seed_name
                     print(f"🌱 Seed: {seed_name}")
                     _run_sql_file(cur, seed_file)
+                    table = table_for_seed[seed_name]
+                    cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    cnt = cur.fetchone()[0]
+                    if seed_name == "tickets.sql":
+                        cur.execute(f"SELECT MIN(ticket_id), MAX(ticket_id) FROM {table}")
+                        mn, mx = cur.fetchone()
+                        print(f"  → {cnt} rows em {table} (ticket_id range: {mn}..{mx})")
+                    else:
+                        print(f"  → {cnt} rows em {table}")
                 print("✅ Seeds carregados (5 tenants Apex + 50 tickets pt-BR + 70 comments)")
             else:
                 print("⏭️  AZURE_LOAD_SEED_DATA=false — seeds pulados")
