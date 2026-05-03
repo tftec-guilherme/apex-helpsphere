@@ -166,13 +166,15 @@ jobs:
       # Replica exatamente o que o Dockerfile do backend faz (Sessão 2.3).
       - name: Install ODBC Driver 18 for SQL Server (Decisão #15)
         run: |
-          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
-            | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-          curl -fsSL https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list \
-            | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          # Run #12 falhou com 'gpg: cannot open /dev/tty' usando gpg --dearmor.
+          # Workaround: usar packages-microsoft-prod.deb que configura repo + key
+          # via dpkg (sem gpg interativo). Approach oficial da MS para CI/headless.
+          UBUNTU_VER=$(lsb_release -rs)
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/${UBUNTU_VER}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev
-          echo "✅ ODBC Driver 18 instalado no runner"
+          echo "✅ ODBC Driver 18 instalado no runner (Ubuntu ${UBUNTU_VER})"
           odbcinst -q -d -n "ODBC Driver 18 for SQL Server" || true
         shell: bash
 
