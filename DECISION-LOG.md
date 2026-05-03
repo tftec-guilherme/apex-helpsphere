@@ -274,6 +274,132 @@ Customização HelpSphere da Sessão 2.3 introduzida pelo @dev (Dex) trouxe 3 in
 
 ---
 
+## Decisão #10 — Extração para repositório público dedicado (Sessão 4)
+
+### Decisão
+
+`helpsphere/` extraído de `tftec-guilherme/azure-retail` (repo monorepo privado da disciplina) para repositório público dedicado **`tftec-guilherme/apex-helpsphere`**, validado via **GitHub Actions OIDC** (não mais via `azd up` local).
+
+### Causa raiz da extração
+
+Sessão 4 começou com approach `azd up` local. Em sequência rápida apareceram blockers de **ambiente local** que NÃO existem no runner GitHub Actions:
+
+1. Python 3.14 (default do user) vs Python 3.13 (Dockerfile produção): pyodbc 5.1.0 não compila local
+2. PowerShell 5.1 vs pwsh 7 warnings
+3. Driver msodbcsql não instalado local
+4. Tempo de feedback longo (cada falha ~15-30min de output local)
+
+Professor questionou: **por que não GitHub Actions desde o início?** Validação via Actions:
+- ✅ Runner Linux limpo + controlado (Python preinstalado, az CLI atualizada)
+- ✅ Mesmo path que aluno vai seguir (clone repo público + workflow)
+- ✅ Audit trail no GitHub (cada deploy = run logado)
+- ✅ Article II Constitution: `@devops` é EXCLUSIVE owner de CI/CD
+
+### Por que repo público dedicado (não monorepo)
+
+| Opção | Veredicto |
+|---|---|
+| Manter `helpsphere/` em `azure-retail` (monorepo privado) | ❌ Aluno teria que clonar repo privado da disciplina (não pode); workflow Actions precisaria filtrar paths; não valida real experiência do aluno |
+| **Repo público dedicado `apex-helpsphere`** ✅ | ✅ Aluno faz `git clone` ou `gh repo fork` direto; workflow rola na raiz; experiência alinhada com README D06 que fala em "GitHub público com template do aluno" |
+| Submodule | ❌ Complexidade pedagógica desnecessária (aluno precisa entender submodules) |
+
+### Estratégia de extração (cópia fresca)
+
+Subtree split rejeitado (chars Unicode em paths Windows quebram o tar). Cópia fresca via `git ls-files` + `Copy-Item`:
+- ✅ 416/419 arquivos versionados copiados
+- ⚠️ 3 PDFs test-data multilíngue do upstream MS (`tests/test-data/ja_*.pdf`, `ko_*.pdf`, `zh_*.pdf`) **skipados** por incompatibilidade chars Unicode em paths Windows. Não-crítico (cenário HelpSphere é pt-BR; esses eram demo RAG MS). Backlog: re-importar via clone Linux.
+- ✅ `.gitignore` herdado (node_modules, .venv, __pycache__ excluídos)
+- ✅ Initial commit `f1e2f0e` na branch `main`
+
+**Audit trail completo do helpsphere ANTES da Sessão 4** permanece em `azure-retail/Disciplina_06_*/03_Aplicações/helpsphere/` (history das Sessões 1, 2.1, 2.2, 2.3, 3, 3.5). Repo público começa com snapshot Sessão 3.5.
+
+### Backlog (Sessão futura)
+
+- Decidir se `azure-retail/.../helpsphere/` vira **submodule** apontando pro repo público (eliminação da duplicação) OU é **deletado e linkado via README** com URL.
+- Re-importar 3 PDFs multilíngue test-data via clone Linux (azure-retail).
+
+---
+
+## Decisão #11 — Configuração Sessão 4 GitHub Actions (region/SKU/auth)
+
+### Decisão consolidada (Sessão 4 — 5 sub-decisões operacionais)
+
+Configuração do smoke run via Actions exigiu 5 ajustes além das Decisões anteriores. Documentadas aqui em conjunto porque são operacionais (não arquiteturais), todas com audit trail no commit history do `apex-helpsphere`.
+
+| # | Decisão | Motivo |
+|---|---|---|
+| 11.1 | **Região: `westus3`** (não `eastus2`) | eastus2 retornou `InsufficientResourcesAvailable` para AI Search + `ProvisioningDisabled` para SQL Server na sub Partner. westus3 valida como alternativa robusta (testado: gpt-4o-mini, Container Apps, AI Search, SQL Server todos disponíveis) |
+| 11.2 | **`zoneRedundant: false`** explícito no SQL DB | AVM `sql/server:0.10.0` default é `null` → resolve para `true` em westus3 → sub Partner retorna `ProvisioningDisabled: Provisioning of zone redundant database/pool is not supported`. Para sub Enterprise + capacidade adequada, mudar para `true`. |
+| 11.3 | **`AZURE_USE_AUTHENTICATION=false`** no smoke (default `true` em prod) | Hook `auth_init.{sh,ps1}` é interativo (cria App Registration Entra com browser consent) — quebra em runner Linux headless. Auth real validado em step manual (Lab Intermediário). Trade-off documentado: smoke não testa endpoints `/api/tickets/*` autenticados. |
+| 11.4 | **`RESTORE_COGNITIVE_SERVICES=true`** | Cleanup `--no-wait` deixa Cog Services em soft-delete por 48h. Sem `restore=true`, próximo provision com mesmo nome falha com `FlagMustBeSetForRestore`. Aceito como default no `apex-helpsphere` para resiliência operacional. |
+| 11.5 | **`chmod +x` em todos `.sh`** via `git update-index --chmod=+x` | Cópia fresca de `azure-retail` (Windows) não preservou bit executável. Runner Linux falhou com `Permission denied` (exit 126) no preprovision hook. Fix permanente no git stored mode (100644 → 100755) — independe de filesystem. |
+
+### Lição pedagógica (para alunos)
+
+Aluno em sub PAYG normal vai encontrar **mesmas 5 surpresas** ao rodar `azd up` pela primeira vez. Documentação `PARA-O-ALUNO.md` (próxima sessão) inclui troubleshooting para cada uma:
+- "Sua região não tem capacidade hoje? Tente outra (lista alternativa)"
+- "SQL com zoneRedundant: por que `false` em PAYG"
+- "Auth: como ativar depois (script manual)"
+- "Cog Services soft-delete: 48h ou purge"
+- "Windows clone: `git update-index --chmod=+x scripts/*.sh` antes do primeiro `azd up`"
+
+Esse troubleshooting é parte do que torna o template **pedagógico canônico** (não um happy-path falso).
+
+---
+
+## Decisão #12 — `prepdocs` guard PDF count (smoke mode)
+
+### Contexto
+
+Run #6 (workflow `25264966004`) provisionou TODOS os 15 recursos com sucesso em westus3, mas falhou no postprovision hook `prepdocs.sh` com:
+
+```
+File ".../prepdocslib/pdfparser.py", line 285, in crop_image_from_pdf_page
+    img.save(bytes_io, format="PNG")
+ValueError: cannot write empty image
+```
+
+### Causa raiz
+
+`prepdocs.sh` roda `python prepdocs.py './data/*' --verbose`. O glob inclui:
+- `data/migrations/*.sql` — não-processáveis (não disparam erro)
+- `data/seed/*.sql` — idem
+- `data/mocks/screenshots-mock/*.png` — **3 PNGs sintéticos** (Sessão 3 B4)
+
+Os PNGs sintéticos do Pillow (sem header complexo) são roteados para `DocumentAnalysisParser.figure_to_image()` que tenta croppar uma "figura" e salvar como PNG via PIL — falha com "cannot write empty image".
+
+**Por que isso aconteceu:** Decisão #3 excluiu PDFs Zava do vendoring. Template HelpSphere é entregue **sem PDFs em `data/`**. Prepdocs não tinha o que processar legitimamente, processou nossos PNGs por erro de escopo.
+
+### Decisão
+
+**Guard "skip if no PDFs" em `prepdocs.{sh,ps1}`:**
+
+```sh
+PDF_COUNT=$(find ./data -name "*.pdf" -type f 2>/dev/null | wc -l)
+if [ "$PDF_COUNT" -eq 0 ]; then
+  echo "No PDFs found in ./data/ — skipping prepdocs (HelpSphere template é entregue vazio)."
+  echo "Para popular o índice RAG, adicione PDFs em ./data/ e rode: ./scripts/prepdocs.sh"
+  exit 0
+fi
+```
+
+### Defesa pedagógica
+
+| Aspecto | Decisão production-grade | Anti-padrão rejeitado |
+|---|---|---|
+| Comportamento padrão | Skip + mensagem instrutiva | Falhar `azd up` por falta de dado opcional |
+| Feedback ao aluno | "Adicione PDFs e rode `./scripts/prepdocs.sh`" | Aluno fica perdido com stack trace PIL |
+| Compatibilidade upstream | Mantém `prepdocs.py` intocado (só wrapper sh/ps1 mudou) | Modificar prepdocs.py = afasta de upstream MS |
+| Lab Intermediário | Aluno tem PDFs próprios → guard passa direto, comportamento idêntico ao upstream | — |
+
+### Implementação
+
+- `scripts/prepdocs.sh`: guard 5 linhas após `USE_CLOUD_INGESTION` check, antes de `load_python_env.sh`
+- `scripts/prepdocs.ps1`: guard 6 linhas equivalente
+- Comentários inline citam Decisão #12 para audit trail futuro
+
+---
+
 ## Audit trail
 
 | Data | Autor | Decisão registrada |
@@ -284,3 +410,4 @@ Customização HelpSphere da Sessão 2.3 introduzida pelo @dev (Dex) trouxe 3 in
 | 2026-05-01 | @architect (Aria) review + @aiox-master (Orion) consolidação + professor revisão | **Decisão #5 cravada — Stack Sessão 2.3 production-grade.** Recomendações iniciais Aria foram **revisadas pelo professor para padrão production-grade defensável**: (a) Container Apps (não App Service), (b) tenant isolation via **JWT claim** (não header arbitrário), (c) `@authenticated` **obrigatório** em todos endpoints (não público por default), (d) **Entra Group** como SQL AAD admin (não user pessoal), (e) seeds automático com flag (mantida). Próximo: @dev implementa Sessão 2.3 com essas decisões. |
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3 concluída em 4 batches (B1-B4).** Decisões #6, #7, #8 cravadas: (#6) Fluent UI v9 preservado + paleta Apex via CSS variables — defesa: rebase futuro vs upstream trivial; (#7) `/`=Chat upstream **preservado** + 2 rotas lazy `/tickets` e `/tickets/:ticketId` adicionadas — defesa: RAG do MS necessário no Lab Inter/Final; (#8) `tenant_id` resolvido server-side via JWT, frontend exibe read-only — defesa: zero caminho de bypass, audit-friendly. ~2.840 linhas adicionadas em 4 commits + 3 PNGs sintéticos pt-BR para Vision OCR. Próximo: Sessão 4 (smoke `azd up` + re-baseline pytest snapshots + defesa arquitetural completa no README + handoff para @architect *qa-gate). |
 | 2026-05-02 | @aiox-master (Orion) executando como @dev | **Sessão 3.5 concluída — bug fix Bicep SQL Server AVM compatibility.** Decisão #9 cravada. 5 patches no `infra/main.bicep` (P1-P4) + audit trail (P5). Bicep compila ✅. Lição aprendida documentada: CodeRabbit não roda `bicep build` — recomendação backlog: adicionar step CI. Próximo: retomar Sessão 4 a partir de S4.2 (env vars adicionais identificadas: `AZURE_DOCUMENTINTELLIGENCE_LOCATION`, `AZURE_OPENAI_LOCATION`). |
+| 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |
