@@ -37,7 +37,15 @@ export default defineConfig({
             "/upload": "http://localhost:50505",
             "/delete_uploaded": "http://localhost:50505",
             "/list_uploaded": "http://localhost:50505",
-            "/chat_history": "http://localhost:50505"
+            "/chat_history": "http://localhost:50505",
+            // Story 06.5c.6: backend Python continua servindo `/api/tenants/me` e
+            // `/api/tickets/{id}/suggest` (stub 501). CRUD de tickets vai pro tickets-service .NET
+            // via VITE_API_TICKETS_URL (vazio em dev = mesmo origin → vai para Python que retorna
+            // 410 Gone, ideal para validar deprecation localmente). Para apontar pra um
+            // tickets-service .NET local rodando em http://localhost:8080, defina
+            // VITE_API_TICKETS_URL=http://localhost:8080 em `.env.development.local`.
+            "/api/tenants": "http://localhost:50505",
+            "/api/tickets": "http://localhost:50505"
         }
     }
 });

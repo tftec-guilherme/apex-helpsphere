@@ -246,12 +246,27 @@ export function Component(): JSX.Element {
                                     </ul>
                                 )}
 
+                                {/*
+                                  Story 06.5c.6 — Adicionar comentário desabilitado temporariamente.
+                                  POST /api/tickets/{id}/comments será implementado no Lab Intermediário
+                                  (junto com sugestão de resposta via RAG). A thread acima continua
+                                  populada pelos comments do seed. Ver DECISION-LOG.md #16.
+                                 */}
+                                <MessageBar intent="info" className={styles.commentForm}>
+                                    <MessageBarBody>
+                                        <MessageBarTitle>Adicionar comentário — Lab Intermediário</MessageBarTitle>
+                                        Esta funcionalidade será habilitada quando você acoplar o pipeline RAG
+                                        no Lab Intermediário (junto com sugestão de resposta automática via IA).
+                                        A thread acima exibe os comentários do seed.
+                                    </MessageBarBody>
+                                </MessageBar>
                                 <form
                                     className={styles.commentForm}
                                     onSubmit={e => {
                                         e.preventDefault();
                                         void submitComment();
                                     }}
+                                    style={{ display: "none" }}
                                 >
                                     <Textarea
                                         placeholder={t("helpsphere.tickets.detail.commentPlaceholder")}

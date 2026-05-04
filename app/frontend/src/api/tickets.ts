@@ -19,8 +19,18 @@ import type {
     ApiErrorBody
 } from "./ticketsModels";
 
+// Story 06.5c.6 (Decisão #16): split de bases — tickets-service .NET vs Python backend.
+// `TICKETS_API_BASE` aponta pro Container App tickets-service (.NET 10 Minimal API + Dapper + MI)
+// que serve os 5 endpoints CRUD canônicos. `BACKEND_URI` (relative) continua apontando pro
+// backend Python que serve `/api/tenants/me` (config) e `/api/tickets/{id}/suggest` (stub 501
+// para Lab Intermediário sobrescrever com RAG).
+//
+// Build-time injection via Vite (`import.meta.env.VITE_API_TICKETS_URL`):
+//   - DEV: vazio → usa proxy do vite.config.ts apontando pra `http://localhost:8080`
+//   - PROD: prebuild hook em azure.yaml exporta TICKETS_BACKEND_URI do azd env (Bicep output)
+const TICKETS_API_BASE = (import.meta.env.VITE_API_TICKETS_URL ?? "").replace(/\/+$/, "");
 const BACKEND_URI = "";
-const TICKETS_BASE = `${BACKEND_URI}/api/tickets`;
+const TICKETS_BASE = `${TICKETS_API_BASE}/api/tickets`;
 
 function buildQuery(filters: TicketsListFilters): string {
     const params = new URLSearchParams();
@@ -65,23 +75,26 @@ export async function getTicketApi(ticketId: number, idToken: string | undefined
     return (await response.json()) as TicketDetail;
 }
 
-export async function addCommentApi(ticketId: number, content: string, idToken: string | undefined): Promise<TicketComment> {
-    const headers = await getHeaders(idToken);
-    const response = await fetch(`${TICKETS_BASE}/${ticketId}/comments`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ content })
-    });
-    if (!response.ok) {
-        throw new Error(await readErrorMessage(response, `Adding comment failed: ${response.statusText}`));
-    }
-    return (await response.json()) as TicketComment;
+/**
+ * Story 06.5c.6 — `POST /api/tickets/{id}/comments` ainda NÃO está implementado no
+ * tickets-service .NET (futuro: Story 06.5c.10 ou Lab Intermediário). UI exibe o
+ * input desabilitado com tooltip explicativo. Esta função existe para preservar o
+ * contract da API mas retorna erro explícito até o endpoint ser implementado.
+ */
+export async function addCommentApi(_ticketId: number, _content: string, _idToken: string | undefined): Promise<TicketComment> {
+    throw new Error(
+        "Adicionar comentário ainda não está disponível: o endpoint POST /api/tickets/{id}/comments " +
+        "será implementado no Lab Intermediário (junto com sugestão de resposta via RAG). " +
+        "Por enquanto, a thread exibe os comentários do seed."
+    );
 }
 
 export async function patchTicketApi(ticketId: number, body: TicketPatchBody, idToken: string | undefined): Promise<Ticket> {
+    // .NET tickets-service expõe `PUT /api/tickets/{id}` (semântica de full update).
+    // Mantemos o nome `patchTicketApi` por compat com call sites — método HTTP mudou para PUT.
     const headers = await getHeaders(idToken);
     const response = await fetch(`${TICKETS_BASE}/${ticketId}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify(body)
     });
@@ -94,10 +107,14 @@ export async function patchTicketApi(ticketId: number, body: TicketPatchBody, id
 /**
  * Stub explícito (HTTP 501) — resposta payload didática usada pela UI para
  * informar que a sugestão de IA será implementada no Lab Intermediário.
+ *
+ * Story 06.5c.6: `/suggest` PERMANECE no backend Python (rota `BACKEND_URI` relative)
+ * porque é stub que será sobrescrito pelo Lab Intermediário com RAG/OpenAI — não migrou
+ * para tickets-service .NET (que mantém apenas CRUD canônico).
  */
 export async function suggestTicketApi(ticketId: number, idToken: string | undefined): Promise<SuggestStubResponse> {
     const headers = await getHeaders(idToken);
-    const response = await fetch(`${TICKETS_BASE}/${ticketId}/suggest`, {
+    const response = await fetch(`${BACKEND_URI}/api/tickets/${ticketId}/suggest`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" }
     });
