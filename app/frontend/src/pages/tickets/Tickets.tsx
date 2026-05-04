@@ -15,27 +15,12 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useMsal } from "@azure/msal-react";
-import {
-    Button,
-    Dropdown,
-    Input,
-    MessageBar,
-    MessageBarBody,
-    MessageBarTitle,
-    Option,
-    Skeleton,
-    SkeletonItem
-} from "@fluentui/react-components";
+import { Button, Dropdown, Input, MessageBar, MessageBarBody, MessageBarTitle, Option, Skeleton, SkeletonItem } from "@fluentui/react-components";
 import { ArrowClockwise24Regular, DismissCircle24Regular, Search24Regular } from "@fluentui/react-icons";
 
 import styles from "./Tickets.module.css";
 import { listTicketsApi, type Ticket, type TicketsListResponse } from "../../api";
-import {
-    TICKET_CATEGORIES,
-    TICKET_STATUSES,
-    type TicketCategory,
-    type TicketStatus
-} from "../../api/ticketsModels";
+import { TICKET_CATEGORIES, TICKET_STATUSES, type TicketCategory, type TicketStatus } from "../../api/ticketsModels";
 import { StatusBadge } from "../../components/StatusBadge";
 import { PriorityBadge } from "../../components/PriorityBadge";
 import { useLogin, getToken } from "../../authConfig";
@@ -103,11 +88,7 @@ export function Component(): JSX.Element {
         if (!data?.items) return [];
         if (!queryParam.trim()) return data.items;
         const needle = queryParam.trim().toLowerCase();
-        return data.items.filter(
-            ticket =>
-                ticket.subject.toLowerCase().includes(needle) ||
-                String(ticket.ticket_id).includes(needle)
-        );
+        return data.items.filter(ticket => ticket.subject.toLowerCase().includes(needle) || String(ticket.ticket_id).includes(needle));
     }, [data, queryParam]);
 
     const total = data?.pagination?.total ?? 0;
@@ -205,12 +186,7 @@ export function Component(): JSX.Element {
                     </label>
 
                     {hasFilters && (
-                        <Button
-                            appearance="subtle"
-                            icon={<DismissCircle24Regular />}
-                            onClick={clearFilters}
-                            className={styles.clearButton}
-                        >
+                        <Button appearance="subtle" icon={<DismissCircle24Regular />} onClick={clearFilters} className={styles.clearButton}>
                             {t("helpsphere.tickets.filters.clear")}
                         </Button>
                     )}
@@ -223,11 +199,7 @@ export function Component(): JSX.Element {
                         <MessageBarTitle>{t("helpsphere.tickets.errorLoading")}</MessageBarTitle>
                         {error}
                     </MessageBarBody>
-                    <Button
-                        appearance="subtle"
-                        icon={<ArrowClockwise24Regular />}
-                        onClick={() => setReloadKey(k => k + 1)}
-                    >
+                    <Button appearance="subtle" icon={<ArrowClockwise24Regular />} onClick={() => setReloadKey(k => k + 1)}>
                         {t("helpsphere.tickets.retry")}
                     </Button>
                 </MessageBar>
@@ -274,21 +246,13 @@ export function Component(): JSX.Element {
 
             {!error && data && (
                 <footer className={styles.pagination} aria-label="Paginação">
-                    <span className={styles.paginationInfo}>
-                        {t("helpsphere.tickets.pagination.showing", { from: fromIndex, to: toIndex, total })}
-                    </span>
+                    <span className={styles.paginationInfo}>{t("helpsphere.tickets.pagination.showing", { from: fromIndex, to: toIndex, total })}</span>
                     <div className={styles.paginationControls}>
                         <Button appearance="secondary" disabled={pageParam <= 1} onClick={() => goToPage(pageParam - 1)}>
                             {t("helpsphere.tickets.pagination.previous")}
                         </Button>
-                        <span className={styles.pageIndicator}>
-                            {t("helpsphere.tickets.pagination.page", { page: pageParam, total: totalPages })}
-                        </span>
-                        <Button
-                            appearance="secondary"
-                            disabled={pageParam >= totalPages || total === 0}
-                            onClick={() => goToPage(pageParam + 1)}
-                        >
+                        <span className={styles.pageIndicator}>{t("helpsphere.tickets.pagination.page", { page: pageParam, total: totalPages })}</span>
+                        <Button appearance="secondary" disabled={pageParam >= totalPages || total === 0} onClick={() => goToPage(pageParam + 1)}>
                             {t("helpsphere.tickets.pagination.next")}
                         </Button>
                     </div>

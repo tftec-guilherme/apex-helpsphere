@@ -84,8 +84,8 @@ export async function getTicketApi(ticketId: number, idToken: string | undefined
 export async function addCommentApi(_ticketId: number, _content: string, _idToken: string | undefined): Promise<TicketComment> {
     throw new Error(
         "Adicionar comentário ainda não está disponível: o endpoint POST /api/tickets/{id}/comments " +
-        "será implementado no Lab Intermediário (junto com sugestão de resposta via RAG). " +
-        "Por enquanto, a thread exibe os comentários do seed."
+            "será implementado no Lab Intermediário (junto com sugestão de resposta via RAG). " +
+            "Por enquanto, a thread exibe os comentários do seed."
     );
 }
 

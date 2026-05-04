@@ -13,33 +13,11 @@ import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useMsal } from "@azure/msal-react";
-import {
-    Button,
-    Dropdown,
-    MessageBar,
-    MessageBarBody,
-    MessageBarTitle,
-    Option,
-    Skeleton,
-    SkeletonItem,
-    Spinner,
-    Textarea
-} from "@fluentui/react-components";
-import {
-    ArrowClockwise24Regular,
-    ArrowLeft24Regular,
-    Send24Regular,
-    Sparkle24Regular
-} from "@fluentui/react-icons";
+import { Button, Dropdown, MessageBar, MessageBarBody, MessageBarTitle, Option, Skeleton, SkeletonItem, Spinner, Textarea } from "@fluentui/react-components";
+import { ArrowClockwise24Regular, ArrowLeft24Regular, Send24Regular, Sparkle24Regular } from "@fluentui/react-icons";
 
 import styles from "./TicketDetail.module.css";
-import {
-    addCommentApi,
-    getTicketApi,
-    patchTicketApi,
-    suggestTicketApi,
-    type TicketDetail as TicketDetailType
-} from "../../api";
+import { addCommentApi, getTicketApi, patchTicketApi, suggestTicketApi, type TicketDetail as TicketDetailType } from "../../api";
 import { TICKET_STATUSES, type TicketStatus } from "../../api/ticketsModels";
 import { StatusBadge } from "../../components/StatusBadge";
 import { PriorityBadge } from "../../components/PriorityBadge";
@@ -194,11 +172,7 @@ export function Component(): JSX.Element {
                         {error}
                     </MessageBarBody>
                     {ticketIdValid && (
-                        <Button
-                            appearance="subtle"
-                            icon={<ArrowClockwise24Regular />}
-                            onClick={() => setReloadKey(k => k + 1)}
-                        >
+                        <Button appearance="subtle" icon={<ArrowClockwise24Regular />} onClick={() => setReloadKey(k => k + 1)}>
                             {t("helpsphere.tickets.retry")}
                         </Button>
                     )}
@@ -226,9 +200,7 @@ export function Component(): JSX.Element {
                             </section>
 
                             <section className={styles.card} aria-label={t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}>
-                                <h2 className={styles.cardTitle}>
-                                    {t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}
-                                </h2>
+                                <h2 className={styles.cardTitle}>{t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}</h2>
 
                                 {ticket.comments.length === 0 ? (
                                     <p className={styles.muted}>—</p>
@@ -255,9 +227,8 @@ export function Component(): JSX.Element {
                                 <MessageBar intent="info" className={styles.commentForm}>
                                     <MessageBarBody>
                                         <MessageBarTitle>Adicionar comentário — Lab Intermediário</MessageBarTitle>
-                                        Esta funcionalidade será habilitada quando você acoplar o pipeline RAG
-                                        no Lab Intermediário (junto com sugestão de resposta automática via IA).
-                                        A thread acima exibe os comentários do seed.
+                                        Esta funcionalidade será habilitada quando você acoplar o pipeline RAG no Lab Intermediário (junto com sugestão de
+                                        resposta automática via IA). A thread acima exibe os comentários do seed.
                                     </MessageBarBody>
                                 </MessageBar>
                                 <form
@@ -288,9 +259,7 @@ export function Component(): JSX.Element {
                                             icon={<Send24Regular />}
                                             disabled={!commentDraft.trim() || submittingComment}
                                         >
-                                            {submittingComment
-                                                ? t("helpsphere.tickets.detail.submitting")
-                                                : t("helpsphere.tickets.detail.submit")}
+                                            {submittingComment ? t("helpsphere.tickets.detail.submitting") : t("helpsphere.tickets.detail.submit")}
                                         </Button>
                                     </div>
                                 </form>
