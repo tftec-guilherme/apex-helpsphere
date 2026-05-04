@@ -3,15 +3,15 @@ if ((azd env get-values) -match "USE_CLOUD_INGESTION=""true""") {
   Exit 0
 }
 
-# HelpSphere — Story 06.5a Sessão 4 (Decisão #12):
-# Guard PDF count. Template HelpSphere é entregue SEM PDFs em data/ (Decisão #3
+# HelpSphere - Story 06.5a Sessao 4 (Decisao #12):
+# Guard PDF count. Template HelpSphere e entregue SEM PDFs em data/ (Decisao #3
 # excluiu PDFs Zava do vendoring). prepdocs falha tentando processar nossos PNGs
-# sintéticos (data/mocks/) via DocumentAnalysisParser figure extractor com erro
-# "cannot write empty image". Aluno adiciona PDFs em data/ no Lab Intermediário
-# e roda este script manualmente para popular o índice RAG.
+# sinteticos (data/mocks/) via DocumentAnalysisParser figure extractor com erro
+# "cannot write empty image". Aluno adiciona PDFs em data/ no Lab Intermediario
+# e roda este script manualmente para popular o indice RAG.
 $pdfCount = (Get-ChildItem -Path ./data -Filter *.pdf -Recurse -ErrorAction SilentlyContinue).Count
 if ($pdfCount -eq 0) {
-  Write-Host "No PDFs found in ./data/ — skipping prepdocs (HelpSphere template é entregue vazio)."
+  Write-Host "No PDFs found in ./data/ - skipping prepdocs (HelpSphere template e entregue vazio)."
   Write-Host "Para popular o indice RAG, adicione PDFs em ./data/ e rode novamente: ./scripts/prepdocs.ps1"
   Exit 0
 }
