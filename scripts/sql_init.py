@@ -313,6 +313,17 @@ def main() -> int:
     with _open_admin_connection(server, database) as conn:
         with conn.cursor() as cur:
             # ----------------------------------------------------------------
+            # Schema FIRST (Story 06.5c.9 fix): migrations precisam rodar antes
+            # dos GRANTs scoped, senão first-run falha com "object 'tbl_tenants'
+            # does not exist" (15151). Schema é idempotente via IF NOT EXISTS no
+            # 001_initial_schema.sql.
+            # ----------------------------------------------------------------
+            schema_file_first = DATA_DIR / "migrations" / "001_initial_schema.sql"
+            print(f"📜 Executando schema (first): {schema_file_first.name}")
+            _run_sql_file(cur, schema_file_first)
+            print("✅ Schema aplicado (3 tabelas + 2 índices + 1 trigger)")
+
+            # ----------------------------------------------------------------
             # Backend MI — Story 06.5c.7: REVOKE legacy broad grants + scoped
             # ----------------------------------------------------------------
             # Validação defensiva ANTES de f-string T-SQL (T6 da 06.5c.4 reuso).
@@ -326,8 +337,15 @@ def main() -> int:
                 f"⚠️  REVOKE db_datareader/db_datawriter de '{backend_mi_name}' "
                 f"(Story 06.5c.7 — fecha AC-4 epic 06.5c)"
             )
-            cur.execute(f"ALTER ROLE db_datareader DROP MEMBER [{backend_mi_name}];")
-            cur.execute(f"ALTER ROLE db_datawriter DROP MEMBER [{backend_mi_name}];")
+            # Guard first-run: se backend MI ainda não foi criado no banco, ALTER ROLE
+            # falha com "Cannot drop the principal" (15151) — pula REVOKE neste caso.
+            cur.execute(
+                f"IF DATABASE_PRINCIPAL_ID('{backend_mi_name}') IS NOT NULL "
+                f"BEGIN "
+                f"  ALTER ROLE db_datareader DROP MEMBER [{backend_mi_name}]; "
+                f"  ALTER ROLE db_datawriter DROP MEMBER [{backend_mi_name}]; "
+                f"END"
+            )
 
             # Backend MI grants scoped: apenas SELECT em tbl_tenants (chat session
             # validation via _resolve_tenant_id em /chat, /ask, /upload, /tenants/me).
@@ -375,11 +393,7 @@ def main() -> int:
             }
             _verify_grants(cur, tickets_mi_name, tickets_expected_grants)
 
-            schema_file = DATA_DIR / "migrations" / "001_initial_schema.sql"
-            print(f"📜 Executando schema: {schema_file.name}")
-            _run_sql_file(cur, schema_file)
-            print("✅ Schema aplicado (3 tabelas + 2 índices + 1 trigger)")
-
+            # Schema já foi aplicado no início do bloco (fix 06.5c.9 — antes dos GRANTs).
             if load_seed_data:
                 # Decisão #15.7 (debug FK violation): print row count após cada seed
                 table_for_seed = {
