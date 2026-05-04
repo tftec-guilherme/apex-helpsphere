@@ -1707,7 +1707,10 @@ output AZURE_OPENAI_EMB_DEPLOYMENT_VERSION string = isAzureOpenAiHost ? embeddin
 output AZURE_OPENAI_EMB_DEPLOYMENT_SKU string = isAzureOpenAiHost ? embedding.deploymentSkuName : ''
 output AZURE_OPENAI_EVAL_DEPLOYMENT string = isAzureOpenAiHost && useEval ? eval.deploymentName : ''
 output AZURE_OPENAI_EVAL_DEPLOYMENT_VERSION string = isAzureOpenAiHost && useEval ? eval.deploymentVersion : ''
-output AZURE_OPENAI_EVAL_DEPLOYMENT_SKU string = isAzureOpenAiHost && useEval ? eval.deploymentSkuName : ''
+// Story 06.5c.4: AZURE_OPENAI_EVAL_DEPLOYMENT_SKU removido (informational, redundante com deployment name).
+// Surpresa #14 reiterada: ARM hard limit 64 outputs. Trade-off: workflows GH Actions consomem o SKU
+// via GH `vars.AZURE_OPENAI_EVAL_DEPLOYMENT_SKU` (não via azd output), então CI permanece funcional.
+// Devs locais executando eval podem setar AZURE_OPENAI_EVAL_DEPLOYMENT_SKU manualmente em .azure/env/.env.
 output AZURE_OPENAI_EVAL_MODEL string = isAzureOpenAiHost && useEval ? eval.modelName : ''
 output AZURE_OPENAI_KNOWLEDGEBASE_DEPLOYMENT string = isAzureOpenAiHost && useAgenticKnowledgeBase ? knowledgeBase.deploymentName : ''
 output AZURE_OPENAI_KNOWLEDGEBASE_MODEL string = isAzureOpenAiHost && useAgenticKnowledgeBase ? knowledgeBase.modelName : ''
@@ -1786,5 +1789,9 @@ output AZURE_SQL_BACKEND_MI_NAME string = useSqlServer
   ? ((deploymentTarget == 'containerapps')
       ? acaIdentityName
       : '${environmentName}-app-identity')
+  : ''
+// Story 06.5c.4: tickets MI display name para sql_init.py criar 2nd CREATE USER FROM EXTERNAL PROVIDER + scoped grants
+output AZURE_SQL_TICKETS_MI_NAME string = useSqlServer && deploymentTarget == 'containerapps'
+  ? acaTicketsIdentityName
   : ''
 output AZURE_LOAD_SEED_DATA bool = loadSeedData

@@ -1,19 +1,25 @@
 """sql_init.py — postprovision hook para HelpSphere SQL.
 
-Story 06.5a — Sessão 2.3.
+Story 06.5a — Sessão 2.3 (origem).
+Story 06.5c.4 — Sessão 7+ (tickets MI scoped grants — Decisão #16 hybrid).
 
 Executa após `azd provision` (Bicep) ter criado:
 - Azure SQL Server + Database `helpsphere`
 - Backend Managed Identity (User-Assigned para Container Apps)
+- Tickets Managed Identity (User-Assigned dedicada para tickets-service .NET)
 - Entra Group como AAD admin do SQL Server
 
 Operações (em ordem, idempotentes):
 
 1. Conecta no Azure SQL como AAD admin (azd CLI user — pertencente ao grupo
    `sqlAadAdminGroupName` configurado no Bicep).
-2. Cria USER no banco `helpsphere` para a Managed Identity do backend
-   (`CREATE USER [<MI-display-name>] FROM EXTERNAL PROVIDER`).
-3. GRANT roles `db_datareader` + `db_datawriter` à MI.
+2. Cria USER no banco `helpsphere` para a backend MI (`CREATE USER FROM EXTERNAL PROVIDER`)
+   + GRANT roles `db_datareader` + `db_datawriter` (legacy path — Decisão D1 da 06.5c.4:
+   backend MI mantém broad grants até 06.5c.7 deprecar /api/tickets/* Python).
+3. Cria USER no banco para a tickets MI + scoped object-level GRANTs:
+   - SELECT/INSERT/UPDATE/DELETE em dbo.tbl_tickets + dbo.tbl_comments
+   - SELECT em dbo.tbl_tenants
+   Verificação automática via sys.database_permissions (fail-fast se mismatch).
 4. Executa `data/migrations/001_initial_schema.sql` (3 tabelas + 2 índices + 1 trigger).
 5. Se `AZURE_LOAD_SEED_DATA=true` (default), executa seeds em ordem:
    tenants.sql → tickets.sql → comments.sql.
@@ -23,20 +29,27 @@ Pré-requisitos no host (autossuficiente via venv `./.venv/`):
 - MS ODBC Driver 18 for SQL Server
 - `azd` CLI logado (azd auth login + az login)
 
-Production-grade rationale (Decisão #5):
+Production-grade rationale (Decisão #5 + Decisão #16):
 - AAD-only auth: nenhuma password gerenciada no banco.
-- USER FROM EXTERNAL PROVIDER: backend autentica via Managed Identity.
+- USER FROM EXTERNAL PROVIDER: cada serviço autentica via sua Managed Identity dedicada.
 - Idempotência via `IF NOT EXISTS` e MERGE nos seeds — pode rodar N vezes sem erro.
+- Least privilege scoped (tickets MI): object-level GRANTs por tabela, NÃO db_datareader/datawriter.
 """
 from __future__ import annotations
 
 import os
+import re
 import struct
 import sys
 from pathlib import Path
 
 import pyodbc
 from azure.identity import AzureDeveloperCliCredential
+
+# Story 06.5c.4 T6: regex whitelist para validar MI display names antes de uso em f-strings T-SQL.
+# UMI names são DNS-like (Microsoft Docs: 3-128 chars, alphanumeric + hyphen + underscore).
+# Defense-in-depth contra T-SQL injection — em prática env var vem do Bicep, mas validar mesmo assim.
+_MI_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 # MSDN: msodbcsql.h — atributo para passar AAD access token diretamente
 SQL_COPT_SS_ACCESS_TOKEN = 1256
@@ -70,8 +83,36 @@ def _open_admin_connection(server: str, database: str) -> pyodbc.Connection:
     return conn
 
 
-def _create_mi_user(cur: pyodbc.Cursor, mi_display_name: str) -> None:
-    """Cria USER FROM EXTERNAL PROVIDER + concede db_datareader + db_datawriter (idempotente)."""
+def _validate_mi_name(mi_display_name: str) -> None:
+    """T6 (Story 06.5c.4): regex whitelist defense-in-depth contra T-SQL injection."""
+    if not _MI_NAME_RE.fullmatch(mi_display_name):
+        raise ValueError(
+            f"MI display name inválido (esperado [a-zA-Z0-9_-]+): {mi_display_name!r}"
+        )
+
+
+def _create_mi_user(
+    cur: pyodbc.Cursor,
+    mi_display_name: str,
+    grants: list[str] | None = None,
+) -> None:
+    """Cria USER FROM EXTERNAL PROVIDER + aplica grants (idempotente).
+
+    Story 06.5c.4 D3: parametrização de grants para suportar tickets MI scoped.
+
+    Args:
+        cur: cursor SQL Server (autocommit).
+        mi_display_name: display name da Managed Identity no Entra (= ARM resource name).
+            Validado por regex (`_validate_mi_name`) antes de uso em f-string T-SQL.
+        grants: lista de statements GRANT object-level já formatados.
+            Se None (default), aplica db_datareader + db_datawriter (backend Python — D1).
+            Se list, aplica cada grant via cursor.execute (T-SQL GRANT é idempotente nativo).
+
+    NOTA D1 (Story 06.5c.4): backend Python atualmente é chamado com grants=None preservando
+    db_datareader/db_datawriter por compat. Story 06.5c.7 revogará e migrará para grants
+    explícitos quando endpoints /api/tickets/* forem deprecados (return 410 Gone).
+    """
+    _validate_mi_name(mi_display_name)
     print(f"👤 Criando USER no banco para MI '{mi_display_name}' (idempotente)...")
     # USER FROM EXTERNAL PROVIDER referencia a Managed Identity pelo display name
     # no Entra (= nome do recurso da MI). Idempotência via IF NOT EXISTS.
@@ -85,9 +126,67 @@ def _create_mi_user(cur: pyodbc.Cursor, mi_display_name: str) -> None:
         END
         """
     )
-    cur.execute(f"ALTER ROLE db_datareader ADD MEMBER [{mi_display_name}];")
-    cur.execute(f"ALTER ROLE db_datawriter ADD MEMBER [{mi_display_name}];")
-    print(f"✅ USER + roles concedidas (db_datareader, db_datawriter)")
+
+    if grants is None:
+        # Backend MI legacy path — db_datareader + db_datawriter (D1: até 06.5c.7 revogar)
+        cur.execute(f"ALTER ROLE db_datareader ADD MEMBER [{mi_display_name}];")
+        cur.execute(f"ALTER ROLE db_datawriter ADD MEMBER [{mi_display_name}];")
+        print(
+            f"✅ '{mi_display_name}' + db_datareader + db_datawriter (legacy backend MI — D1)"
+        )
+    else:
+        # Tickets MI scoped path — object-level grants (idempotente nativo, sem IF NOT EXISTS)
+        for grant_stmt in grants:
+            cur.execute(grant_stmt)
+        print(
+            f"✅ '{mi_display_name}' + {len(grants)} object-level grants (scoped — least privilege)"
+        )
+
+
+def _verify_grants(
+    cur: pyodbc.Cursor,
+    mi_display_name: str,
+    expected: set[tuple[str, str]],
+) -> None:
+    """T5 (Story 06.5c.4): verifica via sys.database_permissions que `mi_display_name`
+    tem exatamente `expected` grants object-level. Fail-fast com diff em stderr se mismatch.
+
+    Args:
+        cur: cursor SQL Server.
+        mi_display_name: display name da MI a verificar (já validado).
+        expected: set de tuplas (object_name, permission_name), ex:
+            {('tbl_tickets','SELECT'), ('tbl_tickets','INSERT'), ...}
+
+    Raises:
+        SystemExit(1) se actual != expected (Bicep typo, schema drift, etc.).
+    """
+    _validate_mi_name(mi_display_name)
+    cur.execute(
+        f"""
+        SELECT OBJECT_NAME(major_id), permission_name
+        FROM sys.database_permissions
+        WHERE grantee_principal_id = USER_ID(N'{mi_display_name}')
+            AND class = 1
+            AND state_desc = 'GRANT'
+        """
+    )
+    actual = {(row[0], row[1].strip()) for row in cur.fetchall()}
+    if actual != expected:
+        missing = expected - actual
+        extra = actual - expected
+        print(
+            f"❌ Grants mismatch para '{mi_display_name}' em sys.database_permissions:",
+            file=sys.stderr,
+        )
+        if missing:
+            print(f"   Faltando: {sorted(missing)}", file=sys.stderr)
+        if extra:
+            print(f"   Inesperados: {sorted(extra)}", file=sys.stderr)
+        sys.exit(1)
+    print(
+        f"✅ Verificação sys.database_permissions: {len(actual)}/{len(expected)} "
+        f"grants object-level confirmados para '{mi_display_name}'"
+    )
 
 
 def _run_sql_file(cur: pyodbc.Cursor, sql_path: Path) -> None:
@@ -122,6 +221,7 @@ def main() -> int:
     server = os.environ.get("AZURE_SQL_SERVER", "").strip()
     database = os.environ.get("AZURE_SQL_DATABASE", "helpsphere").strip()
     backend_mi_name = os.environ.get("AZURE_SQL_BACKEND_MI_NAME", "").strip()
+    tickets_mi_name = os.environ.get("AZURE_SQL_TICKETS_MI_NAME", "").strip()
     load_seed_data = os.environ.get("AZURE_LOAD_SEED_DATA", "true").lower() == "true"
 
     if not server:
@@ -129,7 +229,7 @@ def main() -> int:
         return 0
     if not backend_mi_name:
         print(
-            "⚠️  AZURE_SQL_BACKEND_MI_NAME não setado — não consigo criar USER da MI.",
+            "⚠️  AZURE_SQL_BACKEND_MI_NAME não setado — não consigo criar USER da backend MI.",
             file=sys.stderr,
         )
         print(
@@ -137,11 +237,49 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    if not tickets_mi_name:
+        # Story 06.5c.4 AC 1: tickets MI é mandatório no hybrid (Decisão #16).
+        print(
+            "⚠️  AZURE_SQL_TICKETS_MI_NAME não setado — não consigo criar USER da tickets MI.",
+            file=sys.stderr,
+        )
+        print(
+            "    Verifique se o Bicep main.bicep tem output AZURE_SQL_TICKETS_MI_NAME (Story 06.5c.4)",
+            file=sys.stderr,
+        )
+        print(
+            "    e azd env get-value AZURE_SQL_TICKETS_MI_NAME retorna o display name da UMI tickets-identity.",
+            file=sys.stderr,
+        )
+        return 1
 
     print(f"🔌 Conectando no Azure SQL: {server}/{database}")
     with _open_admin_connection(server, database) as conn:
         with conn.cursor() as cur:
+            # Backend MI — legacy path (db_datareader + db_datawriter, D1)
             _create_mi_user(cur, backend_mi_name)
+
+            # Tickets MI — scoped object-level grants (Story 06.5c.4)
+            tickets_grants = [
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.tbl_tickets TO [{tickets_mi_name}];",
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.tbl_comments TO [{tickets_mi_name}];",
+                f"GRANT SELECT ON dbo.tbl_tenants TO [{tickets_mi_name}];",
+            ]
+            _create_mi_user(cur, tickets_mi_name, grants=tickets_grants)
+
+            # T5: verificação fail-fast — 9 grants esperados (4 tickets + 4 comments + 1 tenants)
+            tickets_expected_grants: set[tuple[str, str]] = {
+                ("tbl_tickets", "SELECT"),
+                ("tbl_tickets", "INSERT"),
+                ("tbl_tickets", "UPDATE"),
+                ("tbl_tickets", "DELETE"),
+                ("tbl_comments", "SELECT"),
+                ("tbl_comments", "INSERT"),
+                ("tbl_comments", "UPDATE"),
+                ("tbl_comments", "DELETE"),
+                ("tbl_tenants", "SELECT"),
+            }
+            _verify_grants(cur, tickets_mi_name, tickets_expected_grants)
 
             schema_file = DATA_DIR / "migrations" / "001_initial_schema.sql"
             print(f"📜 Executando schema: {schema_file.name}")
