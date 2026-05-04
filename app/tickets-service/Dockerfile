@@ -8,12 +8,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy csprojs first for layer caching (npm-style)
-COPY ["TicketsService.sln", "./"]
+# Story 06.5c.3 fix run #21: removido COPY de TicketsService.sln (real é .slnx
+# XML format .NET 9+) e COPY de tests/csproj (excluido por .dockerignore + não
+# necessário — `dotnet restore` da Api csproj resolve refs transitivas via
+# ProjectReference para Domain + Infrastructure).
 COPY ["Directory.Build.props", "./"]
 COPY ["src/TicketsService.Api/TicketsService.Api.csproj", "src/TicketsService.Api/"]
 COPY ["src/TicketsService.Domain/TicketsService.Domain.csproj", "src/TicketsService.Domain/"]
 COPY ["src/TicketsService.Infrastructure/TicketsService.Infrastructure.csproj", "src/TicketsService.Infrastructure/"]
-COPY ["tests/TicketsService.Tests/TicketsService.Tests.csproj", "tests/TicketsService.Tests/"]
 RUN dotnet restore "src/TicketsService.Api/TicketsService.Api.csproj"
 
 # Copy source + publish
