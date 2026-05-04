@@ -2,6 +2,7 @@
 
 Story 06.5a — Sessão 2.3 (origem).
 Story 06.5c.4 — Sessão 7+ (tickets MI scoped grants — Decisão #16 hybrid).
+Story 06.5c.7 — Sessão 8+ (REVOKE backend MI broad grants — fecha AC-4 do epic).
 
 Executa após `azd provision` (Bicep) ter criado:
 - Azure SQL Server + Database `helpsphere`
@@ -13,13 +14,17 @@ Operações (em ordem, idempotentes):
 
 1. Conecta no Azure SQL como AAD admin (azd CLI user — pertencente ao grupo
    `sqlAadAdminGroupName` configurado no Bicep).
-2. Cria USER no banco `helpsphere` para a backend MI (`CREATE USER FROM EXTERNAL PROVIDER`)
-   + GRANT roles `db_datareader` + `db_datawriter` (legacy path — Decisão D1 da 06.5c.4:
-   backend MI mantém broad grants até 06.5c.7 deprecar /api/tickets/* Python).
-3. Cria USER no banco para a tickets MI + scoped object-level GRANTs:
-   - SELECT/INSERT/UPDATE/DELETE em dbo.tbl_tickets + dbo.tbl_comments
-   - SELECT em dbo.tbl_tenants
-   Verificação automática via sys.database_permissions (fail-fast se mismatch).
+2. Backend MI (Story 06.5c.7 — least privilege real):
+   - REVOKE `db_datareader` + `db_datawriter` (broad grants legacy 06.5a/06.5c.4)
+   - CREATE USER FROM EXTERNAL PROVIDER (idempotente)
+   - GRANT SELECT em `dbo.tbl_tenants` apenas (chat session validation)
+   - Verificação dupla: object-level grants (`_verify_grants`) + role memberships
+     (`_verify_no_role_memberships`) confirma que NÃO está em db_datareader/db_datawriter
+3. Tickets MI (Story 06.5c.4 — preservado):
+   - CREATE USER FROM EXTERNAL PROVIDER (idempotente)
+   - GRANT SELECT/INSERT/UPDATE/DELETE em `dbo.tbl_tickets` + `dbo.tbl_comments`
+   - GRANT SELECT em `dbo.tbl_tenants`
+   - Verificação automática via `sys.database_permissions` (9/9 grants)
 4. Executa `data/migrations/001_initial_schema.sql` (3 tabelas + 2 índices + 1 trigger).
 5. Se `AZURE_LOAD_SEED_DATA=true` (default), executa seeds em ordem:
    tenants.sql → tickets.sql → comments.sql.
@@ -29,11 +34,13 @@ Pré-requisitos no host (autossuficiente via venv `./.venv/`):
 - MS ODBC Driver 18 for SQL Server
 - `azd` CLI logado (azd auth login + az login)
 
-Production-grade rationale (Decisão #5 + Decisão #16):
+Production-grade rationale (Decisão #5 + Decisão #16 + Story 06.5c.7):
 - AAD-only auth: nenhuma password gerenciada no banco.
 - USER FROM EXTERNAL PROVIDER: cada serviço autentica via sua Managed Identity dedicada.
 - Idempotência via `IF NOT EXISTS` e MERGE nos seeds — pode rodar N vezes sem erro.
-- Least privilege scoped (tickets MI): object-level GRANTs por tabela, NÃO db_datareader/datawriter.
+- Least privilege scoped REAL (verificável via sys.database_permissions e
+  sys.database_role_members): backend só tem SELECT em tbl_tenants; tickets tem
+  CRUD em tbl_tickets/tbl_comments + SELECT em tbl_tenants. Nada mais.
 """
 from __future__ import annotations
 
@@ -189,6 +196,55 @@ def _verify_grants(
     )
 
 
+def _verify_no_role_memberships(
+    cur: pyodbc.Cursor,
+    mi_display_name: str,
+    forbidden: set[str],
+) -> None:
+    """Story 06.5c.7: garante que `mi_display_name` NÃO está em roles broad
+    (default check: `db_datareader`, `db_datawriter`).
+
+    Usa `sys.database_role_members` JOIN `sys.database_principals` para listar
+    os roles atuais do user. Falha fail-fast com `sys.exit(1)` se intersection
+    com `forbidden` for non-empty.
+
+    Companion ao `_verify_grants`: aquele cobre object-level grants (class=1),
+    este cobre database-level role memberships. Backend após 06.5c.7 deve ter
+    intersection vazia com {db_datareader, db_datawriter}.
+
+    Args:
+        cur: cursor SQL Server.
+        mi_display_name: display name da MI (já validado via `_validate_mi_name`).
+        forbidden: set de role names que NÃO devem estar associadas.
+
+    Raises:
+        SystemExit(1) se actual_roles ∩ forbidden ≠ ∅.
+    """
+    _validate_mi_name(mi_display_name)
+    cur.execute(
+        f"""
+        SELECT dp.name
+        FROM sys.database_role_members rm
+        JOIN sys.database_principals dp ON dp.principal_id = rm.role_principal_id
+        JOIN sys.database_principals u ON u.principal_id = rm.member_principal_id
+        WHERE u.name = N'{mi_display_name}'
+        """
+    )
+    actual_roles = {row[0] for row in cur.fetchall()}
+    intersection = forbidden & actual_roles
+    if intersection:
+        print(
+            f"❌ '{mi_display_name}' ainda em roles broad proibidos: {sorted(intersection)}",
+            file=sys.stderr,
+        )
+        print(f"   Roles atuais: {sorted(actual_roles)}", file=sys.stderr)
+        sys.exit(1)
+    print(
+        f"✅ '{mi_display_name}' sem roles broad {sorted(forbidden)} "
+        f"(least privilege real cravado — Story 06.5c.7)"
+    )
+
+
 def _run_sql_file(cur: pyodbc.Cursor, sql_path: Path) -> None:
     """Executa arquivo .sql T-SQL respeitando GO como batch separator.
 
@@ -256,10 +312,33 @@ def main() -> int:
     print(f"🔌 Conectando no Azure SQL: {server}/{database}")
     with _open_admin_connection(server, database) as conn:
         with conn.cursor() as cur:
-            # Backend MI — legacy path (db_datareader + db_datawriter, D1)
-            _create_mi_user(cur, backend_mi_name)
+            # ----------------------------------------------------------------
+            # Backend MI — Story 06.5c.7: REVOKE legacy broad grants + scoped
+            # ----------------------------------------------------------------
+            # Validação defensiva ANTES de f-string T-SQL (T6 da 06.5c.4 reuso).
+            _validate_mi_name(backend_mi_name)
 
-            # Tickets MI — scoped object-level grants (Story 06.5c.4)
+            # REVOKE legacy db_datareader/db_datawriter (broad — origem 06.5a 2.3
+            # mantida em 06.5c.4 D1 trade-off, fechada em 06.5c.7).
+            # ALTER ROLE ... DROP MEMBER é nativo idempotente (não falha se member
+            # já não pertence ao role).
+            print(
+                f"⚠️  REVOKE db_datareader/db_datawriter de '{backend_mi_name}' "
+                f"(Story 06.5c.7 — fecha AC-4 epic 06.5c)"
+            )
+            cur.execute(f"ALTER ROLE db_datareader DROP MEMBER [{backend_mi_name}];")
+            cur.execute(f"ALTER ROLE db_datawriter DROP MEMBER [{backend_mi_name}];")
+
+            # Backend MI grants scoped: apenas SELECT em tbl_tenants (chat session
+            # validation via _resolve_tenant_id em /chat, /ask, /upload, /tenants/me).
+            backend_grants = [
+                f"GRANT SELECT ON dbo.tbl_tenants TO [{backend_mi_name}];",
+            ]
+            _create_mi_user(cur, backend_mi_name, grants=backend_grants)
+
+            # ----------------------------------------------------------------
+            # Tickets MI — Story 06.5c.4: scoped object-level grants
+            # ----------------------------------------------------------------
             tickets_grants = [
                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.tbl_tickets TO [{tickets_mi_name}];",
                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.tbl_comments TO [{tickets_mi_name}];",
@@ -267,7 +346,22 @@ def main() -> int:
             ]
             _create_mi_user(cur, tickets_mi_name, grants=tickets_grants)
 
-            # T5: verificação fail-fast — 9 grants esperados (4 tickets + 4 comments + 1 tenants)
+            # ----------------------------------------------------------------
+            # Verificação fail-fast (least privilege real verificável)
+            # ----------------------------------------------------------------
+
+            # Backend MI: 1 grant esperado (tbl_tenants SELECT) + zero roles broad
+            backend_expected_grants: set[tuple[str, str]] = {
+                ("tbl_tenants", "SELECT"),
+            }
+            _verify_grants(cur, backend_mi_name, backend_expected_grants)
+            _verify_no_role_memberships(
+                cur,
+                backend_mi_name,
+                forbidden={"db_datareader", "db_datawriter"},
+            )
+
+            # Tickets MI: 9 grants object-level esperados
             tickets_expected_grants: set[tuple[str, str]] = {
                 ("tbl_tickets", "SELECT"),
                 ("tbl_tickets", "INSERT"),

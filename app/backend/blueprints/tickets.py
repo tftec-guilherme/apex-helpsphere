@@ -1,93 +1,46 @@
-"""HelpSphere tickets REST API — 5 endpoints @authenticated.
+"""HelpSphere tickets blueprint — endpoints CRUD DEPRECATED + auxiliary preserved.
 
-Story 06.5a — Sessão 2.3 (production-grade, sem atalhos).
+Story 06.5a — Sessão 2.3 (origem — 5 endpoints CRUD + 1 RAG stub + 1 auxiliary).
+Story 06.5c.7 — Sessão 8+ (Decisão #16 hybrid microservices — 4 CRUD viram 410 Gone).
 
-Multi-tenancy:
-    Todos os endpoints exigem JWT claim `app_tenant_id` (extraída pelo
-    `_resolve_tenant_id`). Se ausente → HTTP 403. Sem fallback silencioso.
+Estado atual após 06.5c.7:
+- 4 endpoints CRUD (`GET /api/tickets`, `GET /api/tickets/{id}`,
+  `POST /api/tickets/{id}/comments`, `PATCH /api/tickets/{id}`) retornam
+  HTTP 410 Gone (RFC 9110 §15.5.11) com header `Link: <successor-uri>;
+  rel="successor-version"` (RFC 5988/8288). Migrados para tickets-service .NET.
+- `POST /api/tickets/{id}/suggest` PRESERVADO (501 stub — Lab Intermediário
+  implementa o RAG via Document Intelligence + AI Search + OpenAI).
+- `GET /api/tenants/me` PRESERVADO (auxiliary — backend continua precisando
+  para chat session validation via `_resolve_tenant_id`).
 
-    Ratio: a Apex Group tem 5 brand tenants no schema SQL, todos no MESMO
-    Entra tenant. A claim `app_tenant_id` é configurada via App Roles ou
-    custom extension attribute no Entra App Registration. Backend valida
-    JWT (assinatura, audience, exp) via `@authenticated` decorator e usa
-    a claim para isolation real (WHERE tenant_id = ?).
+Successor URI:
+    Lido de `os.environ["TICKETS_BACKEND_URI"]` (Bicep output do tickets-service .NET).
+    Fallback graceful: se env var ausente, Link header omitido + `successor_uri: null`
+    no body JSON. Backend log warning, não crash.
 
-Author de comments:
-    Sempre extraído de auth_claims (`name` ou `preferred_username`). Body
-    do POST /comments contém apenas `content` — author não é controlável
-    pelo cliente (audit-friendly, anti-spoofing).
-
-Stub `/suggest`:
-    HTTP 501 explícito. Lab Intermediário implementa o RAG com Document
-    Intelligence + AI Search + OpenAI.
+Multi-tenancy preservada nos endpoints PRESERVADOS:
+    `_resolve_tenant_id` valida JWT claim `app_tenant_id` (HTTP 403 se ausente).
 """
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from quart import Blueprint, abort, current_app, jsonify, request
+from quart import Blueprint, abort, current_app, jsonify
 
-from config import (
-    CONFIG_COMMENTS_REPO,
-    CONFIG_TENANTS_REPO,
-    CONFIG_TICKETS_REPO,
-)
+from config import CONFIG_TENANTS_REPO
 from decorators import authenticated
 from error import error_response
-from repositories import CommentsRepository, TenantsRepository, TicketsRepository
+from repositories import TenantsRepository
 
 logger = logging.getLogger(__name__)
 
 tickets_bp = Blueprint("helpsphere_tickets", __name__)
 
-# Listas espelham CHECK constraints do schema (data/migrations/001_initial_schema.sql)
-VALID_STATUS = ("Open", "InProgress", "Resolved", "Escalated")
-VALID_PRIORITY = ("Low", "Medium", "High", "Critical")
-VALID_CATEGORY = ("Comercial", "TI", "Operacional", "RH", "Financeiro")
-
 
 # ---------------------------------------------------------------------------
-# Pydantic models — body validation
-# ---------------------------------------------------------------------------
-
-
-class TicketPatchBody(BaseModel):
-    """PATCH /api/tickets/{id} — pelo menos um de status/priority."""
-
-    status: str | None = None
-    priority: str | None = None
-
-    @field_validator("status")
-    @classmethod
-    def _status_valid(cls, v: str | None) -> str | None:
-        if v is not None and v not in VALID_STATUS:
-            raise ValueError(f"status deve ser um de {list(VALID_STATUS)}")
-        return v
-
-    @field_validator("priority")
-    @classmethod
-    def _priority_valid(cls, v: str | None) -> str | None:
-        if v is not None and v not in VALID_PRIORITY:
-            raise ValueError(f"priority deve ser um de {list(VALID_PRIORITY)}")
-        return v
-
-    @model_validator(mode="after")
-    def _at_least_one(self) -> "TicketPatchBody":
-        if self.status is None and self.priority is None:
-            raise ValueError("informe status, priority, ou ambos")
-        return self
-
-
-class CommentCreateBody(BaseModel):
-    """POST /api/tickets/{id}/comments — author vem do JWT, não do body."""
-
-    content: str = Field(min_length=1, max_length=10000)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
+# Helpers — preservados (usados em /suggest e /tenants/me)
 # ---------------------------------------------------------------------------
 
 
@@ -108,151 +61,86 @@ def _resolve_tenant_id(auth_claims: dict[str, Any]) -> str:
     return str(tenant_id)
 
 
-def _resolve_author(auth_claims: dict[str, Any]) -> str:
-    """Identidade do usuário logado para audit trail em comments."""
-    return (
-        auth_claims.get("name")
-        or auth_claims.get("preferred_username")
-        or auth_claims.get("email")
-        or "unknown-user"
-    )
+# ---------------------------------------------------------------------------
+# Helper de deprecation 410 — Story 06.5c.7
+# ---------------------------------------------------------------------------
 
 
-def _parse_int_query(name: str, default: int, *, minimum: int, maximum: int) -> int:
-    raw = request.args.get(name, str(default))
-    try:
-        value = int(raw)
-    except ValueError:
-        abort(400, description=f"query param '{name}' deve ser inteiro")
-    if not minimum <= value <= maximum:
-        abort(400, description=f"query param '{name}' deve estar entre {minimum} e {maximum}")
-    return value
+def _deprecated_410(path_suffix: str = ""):
+    """Story 06.5c.7: endpoint migrado para tickets-service .NET (Decisão #16).
+
+    Retorna tuple (response, status_code, headers) seguindo Quart convention.
+
+    Args:
+        path_suffix: path component para construir successor URI completo.
+            Ex: "/api/tickets/42/comments" → Link aponta para
+            tickets-service equivalente.
+
+    Returns:
+        (jsonify(body), 410, headers).
+        Link header omitido se TICKETS_BACKEND_URI não estiver setado
+        (graceful fallback — backend log warning mas não crash).
+    """
+    successor_base = os.environ.get("TICKETS_BACKEND_URI", "").rstrip("/")
+    full_uri = f"{successor_base}{path_suffix}" if successor_base else None
+
+    body = {
+        "error": "endpoint_deprecated",
+        "message": (
+            "Este endpoint migrou para o tickets-service .NET "
+            "(Story 06.5c — Decisão #16 hybrid microservices)"
+        ),
+        "successor_uri": full_uri,
+        "since": "2026-05-04",
+        "epic": "06.5c",
+    }
+
+    headers: dict[str, str] = {}
+    if full_uri:
+        headers["Link"] = f'<{full_uri}>; rel="successor-version"'
+    else:
+        logger.warning(
+            "TICKETS_BACKEND_URI não setado — Link header omitido em 410 response"
+        )
+
+    return jsonify(body), 410, headers
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# 4 Endpoints DEPRECATED (Story 06.5c.7) — retornam 410 Gone
 # ---------------------------------------------------------------------------
+# NOTA D1 da story: @authenticated REMOVIDO destes endpoints. Deprecation
+# response não exige token — request rejeitada antes de validation. Cliente
+# usando Link header já sabe para onde migrar (tickets-service .NET).
 
 
 @tickets_bp.get("/api/tickets")
-@authenticated
-async def list_tickets(auth_claims: dict[str, Any]):
-    """Lista tickets do tenant logado, com filtros e paginação offset-based."""
-    tenant_id = _resolve_tenant_id(auth_claims)
-
-    status = request.args.get("status")
-    if status and status not in VALID_STATUS:
-        abort(400, description=f"status deve ser um de {list(VALID_STATUS)}")
-    category = request.args.get("category")
-    if category and category not in VALID_CATEGORY:
-        abort(400, description=f"category deve ser um de {list(VALID_CATEGORY)}")
-
-    limit = _parse_int_query("limit", default=20, minimum=1, maximum=100)
-    offset = _parse_int_query("offset", default=0, minimum=0, maximum=10_000)
-
-    repo: TicketsRepository = current_app.config[CONFIG_TICKETS_REPO]
-    try:
-        items = await repo.list(
-            tenant_id=tenant_id,
-            status=status,
-            category=category,
-            limit=limit,
-            offset=offset,
-        )
-        total = await repo.count(tenant_id=tenant_id, status=status, category=category)
-    except Exception as error:
-        return error_response(error, "/api/tickets")
-
-    return jsonify(
-        {
-            "items": items,
-            "pagination": {"limit": limit, "offset": offset, "total": total},
-        }
-    )
+async def list_tickets():
+    """410 Gone — migrou para tickets-service .NET. Story 06.5c.7."""
+    return _deprecated_410("/api/tickets")
 
 
 @tickets_bp.get("/api/tickets/<int:ticket_id>")
-@authenticated
-async def get_ticket(ticket_id: int, auth_claims: dict[str, Any]):
-    """Detalhe do ticket + thread completa de comments (1 query LEFT JOIN)."""
-    tenant_id = _resolve_tenant_id(auth_claims)
-
-    repo: TicketsRepository = current_app.config[CONFIG_TICKETS_REPO]
-    try:
-        ticket = await repo.get_with_comments(ticket_id=ticket_id, tenant_id=tenant_id)
-    except Exception as error:
-        return error_response(error, f"/api/tickets/{ticket_id}")
-
-    if ticket is None:
-        return jsonify({"error": "ticket não encontrado ou sem permissão"}), 404
-    return jsonify(ticket)
+async def get_ticket(ticket_id: int):
+    """410 Gone — migrou para tickets-service .NET. Story 06.5c.7."""
+    return _deprecated_410(f"/api/tickets/{ticket_id}")
 
 
 @tickets_bp.post("/api/tickets/<int:ticket_id>/comments")
-@authenticated
-async def add_comment(ticket_id: int, auth_claims: dict[str, Any]):
-    """Adiciona comment ao ticket. Author = identidade do usuário logado."""
-    tenant_id = _resolve_tenant_id(auth_claims)
-    author = _resolve_author(auth_claims)
-
-    if not request.is_json:
-        return jsonify({"error": "request must be json"}), 415
-
-    raw_body = await request.get_json()
-    try:
-        payload = CommentCreateBody.model_validate(raw_body or {})
-    except ValidationError as e:
-        return jsonify({"error": "validation_failed", "details": e.errors()}), 400
-
-    comments_repo: CommentsRepository = current_app.config[CONFIG_COMMENTS_REPO]
-    try:
-        result = await comments_repo.add(
-            ticket_id=ticket_id,
-            tenant_id=tenant_id,
-            author=author,
-            content=payload.content,
-        )
-    except ValueError as e:
-        msg = str(e)
-        status_code = 404 if "não existe" in msg or "não pertence" in msg else 400
-        return jsonify({"error": msg}), status_code
-    except Exception as error:
-        return error_response(error, f"/api/tickets/{ticket_id}/comments")
-
-    return jsonify(result), 201
+async def add_comment(ticket_id: int):
+    """410 Gone — migrou para tickets-service .NET. Story 06.5c.7."""
+    return _deprecated_410(f"/api/tickets/{ticket_id}/comments")
 
 
 @tickets_bp.patch("/api/tickets/<int:ticket_id>")
-@authenticated
-async def patch_ticket(ticket_id: int, auth_claims: dict[str, Any]):
-    """Atualiza status e/ou priority do ticket."""
-    tenant_id = _resolve_tenant_id(auth_claims)
+async def patch_ticket(ticket_id: int):
+    """410 Gone — migrou para tickets-service .NET. Story 06.5c.7."""
+    return _deprecated_410(f"/api/tickets/{ticket_id}")
 
-    if not request.is_json:
-        return jsonify({"error": "request must be json"}), 415
 
-    raw_body = await request.get_json()
-    try:
-        payload = TicketPatchBody.model_validate(raw_body or {})
-    except ValidationError as e:
-        return jsonify({"error": "validation_failed", "details": e.errors()}), 400
-
-    repo: TicketsRepository = current_app.config[CONFIG_TICKETS_REPO]
-    try:
-        result = await repo.patch(
-            ticket_id=ticket_id,
-            tenant_id=tenant_id,
-            status=payload.status,
-            priority=payload.priority,
-        )
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as error:
-        return error_response(error, f"/api/tickets/{ticket_id}")
-
-    if result is None:
-        return jsonify({"error": "ticket não encontrado ou sem permissão"}), 404
-    return jsonify(result)
+# ---------------------------------------------------------------------------
+# 2 Endpoints PRESERVADOS (Story 06.5c.7 D3) — funcionam normalmente
+# ---------------------------------------------------------------------------
 
 
 @tickets_bp.post("/api/tickets/<int:ticket_id>/suggest")
@@ -263,6 +151,8 @@ async def suggest_response(ticket_id: int, auth_claims: dict[str, Any]):
     Retorna 501 Not Implemented + payload didático identificando o ponto
     de extensão. Mantém o contrato do endpoint estável para que o frontend
     da Sessão 3 já possa chamar.
+
+    PRESERVADO em 06.5c.7 (D3): RAG é Python territory, NÃO migra para .NET.
     """
     _ = _resolve_tenant_id(auth_claims)  # valida tenant mesmo no stub (multi-tenant safe by default)
     return (
@@ -283,6 +173,8 @@ async def suggest_response(ticket_id: int, auth_claims: dict[str, Any]):
 
 
 # Tenants endpoint auxiliar — útil para frontend popular dropdowns / debug
+# PRESERVADO em 06.5c.7 (D3): tenants é compartilhado entre backend Python
+# (chat session validation) e tickets-service .NET (tenant lookup).
 @tickets_bp.get("/api/tenants/me")
 @authenticated
 async def get_my_tenant(auth_claims: dict[str, Any]):

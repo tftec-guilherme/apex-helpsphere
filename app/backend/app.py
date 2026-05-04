@@ -54,7 +54,6 @@ from config import (
     CONFIG_CHAT_APPROACH,
     CONFIG_CHAT_HISTORY_BROWSER_ENABLED,
     CONFIG_CHAT_HISTORY_COSMOS_ENABLED,
-    CONFIG_COMMENTS_REPO,
     CONFIG_CREDENTIAL,
     CONFIG_DEFAULT_REASONING_EFFORT,
     CONFIG_DEFAULT_RETRIEVAL_REASONING_EFFORT,
@@ -87,7 +86,6 @@ from config import (
     CONFIG_SQL_POOL,
     CONFIG_STREAMING_ENABLED,
     CONFIG_TENANTS_REPO,
-    CONFIG_TICKETS_REPO,
     CONFIG_USER_BLOB_MANAGER,
     CONFIG_USER_UPLOAD_ENABLED,
     CONFIG_VECTOR_SEARCH_ENABLED,
@@ -111,9 +109,7 @@ from prepdocslib.embeddings import ImageEmbeddings
 from prepdocslib.filestrategy import UploadUserFileStrategy
 from prepdocslib.listfilestrategy import File
 from repositories import (
-    CommentsRepository,
     TenantsRepository,
-    TicketsRepository,
     create_sql_pool,
 )
 
@@ -746,7 +742,20 @@ async def setup_clients():
     )
 
     # ----------------------------------------------------------------------
-    # HelpSphere — Story 06.5a Sessão 2.3: SQL pool + repositories injection
+    # HelpSphere — Story 06.5a Sessão 2.3 (origem) + Story 06.5c.7 (refactor):
+    # SQL pool + apenas TenantsRepository injection.
+    #
+    # Story 06.5c.7 (Decisão #16 hybrid): TicketsRepository e CommentsRepository
+    # REMOVIDOS — endpoints /api/tickets/* CRUD migraram para tickets-service .NET
+    # e retornam 410 Gone no Python (ver blueprints/tickets.py).
+    #
+    # TenantsRepository PRESERVADO (D4): backend Python continua precisando de
+    # SELECT em tbl_tenants para chat session validation (_resolve_tenant_id em
+    # /chat, /ask, /upload + endpoint preservado /api/tenants/me).
+    #
+    # Backend MI grants alinhados via sql_init.py (06.5c.7 T3): REVOKE
+    # db_datareader/db_datawriter + GRANT SELECT em tbl_tenants apenas (least
+    # privilege real — fecha AC-4 do epic 06.5c).
     # ----------------------------------------------------------------------
     AZURE_SQL_SERVER = os.getenv("AZURE_SQL_SERVER")
     AZURE_SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE", "helpsphere")
@@ -761,13 +770,13 @@ async def setup_clients():
             azure_client_id=os.getenv("AZURE_CLIENT_ID"),
         )
         current_app.config[CONFIG_SQL_POOL] = sql_pool
-        current_app.config[CONFIG_TICKETS_REPO] = TicketsRepository(sql_pool)
-        current_app.config[CONFIG_COMMENTS_REPO] = CommentsRepository(sql_pool)
         current_app.config[CONFIG_TENANTS_REPO] = TenantsRepository(sql_pool)
-        current_app.logger.info("HelpSphere repositories injetados | tickets, comments, tenants")
+        current_app.logger.info(
+            "HelpSphere repositories injetados | tenants (tickets/comments migrados para .NET — 06.5c.7)"
+        )
     else:
         current_app.logger.warning(
-            "AZURE_SQL_SERVER não configurado — endpoints HelpSphere ficarão indisponíveis"
+            "AZURE_SQL_SERVER não configurado — /api/tenants/me ficará indisponível"
         )
 
 
