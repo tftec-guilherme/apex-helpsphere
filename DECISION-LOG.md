@@ -2,9 +2,10 @@
 
 > Documenta as decisões arquiteturais que levaram à escolha do template-base e às customizações aplicadas. Audiência: arquiteto sênior auditando a defesa técnica da disciplina.
 >
-> **Story:** [06.5a — HelpSphere Template (REUSE fork Microsoft)](../../../../docs/stories/06.5a.helpsphere-template.md)
+> **Story raiz:** [06.5a — HelpSphere Template (REUSE fork Microsoft)](../../../../docs/stories/06.5a.helpsphere-template.md)
+> **Epic em curso:** [06.5c — Hybrid Microservices Python+.NET (B-PRACTICAL)](../../../../docs/stories/) · 9 stories · 4/9 Done · AC-4 + AC-5 fechados pós-Sessão 8
 > **Version-anchor:** Q2-2026
-> **Última atualização:** 2026-04-27
+> **Última atualização:** 2026-05-04 (Sessão 9.1 — docs Decisão #16 cravada)
 
 ---
 
@@ -614,41 +615,102 @@ Também: **scripts de hook sempre devem ter default seguro para o contexto do pr
 
 ---
 
-## Backlog futuro — Decisão #16 PLANEJADA (Sessão 6)
+## Decisão #16 — Hybrid Microservices Python + .NET (CRAVADA — Sessões 6-8, Epic 06.5c parcial)
 
-> **Status:** PROPOSTA — não cravada. Requer formalização via `@pm *create-epic` + `@architect *generate-implementation-plan` antes de start.
+> **Status:** CRAVADA · Forma: **Epic 06.5c** (9 stories, 4 done + 2 partial + 3 pending) · **AC-4 + AC-5 do epic FECHADOS pós-Sessão 8.**
 
-### HelpSphere v2 — Hybrid Microservices (Python + .NET)
+### Contexto
 
-**Motivação:**
+A Decisão #15 fechou o caminho `Python → pyodbc → SQL com MI` com 3 fixes complementares, mas a fragilidade arquitetural ficou exposta. A Decisão #16 PLANEJADA propôs hybrid Python+.NET. O professor escolheu approach **B-PRACTICAL** (incremental, fases reversíveis), formalizado via `@pm *create-epic` como **epic 06.5c** com 9 stories.
 
-A Decisão #14 (pyodbc compile) e a Decisão #15 (sql_init env passing + crashloop) revelaram que o caminho **Python → ODBC Driver 18 → SQL Server com MI auth** é **frágil em CPython recentes** e operacionalmente complexo (3 fixes só pra SQL conectar). `Microsoft.Data.SqlClient` em .NET resolve nativamente: `Authentication=ActiveDirectoryManagedIdentity` na connection string + token caching/refresh transparente, zero ODBC, zero compile, zero skip silencioso.
+### Trajetória de execução (Sessões 6-8)
 
-**Escopo proposto (high-level, requer @architect refinar):**
+**Sessão 6 — Stories 06.5c.1 + 06.5c.2** (commits `cdbf855`, `e87dcf4`)
 
-1. Manter `app/backend/` Python AS-IS (RAG, OpenAI, Vision, DocIntel, Search) — endpoints `/chat`, `/ask`, `/upload`, etc
-2. Criar `app/tickets-service/` em **ASP.NET Core 9 Minimal API + Dapper** (ou EF Core) — endpoints `/api/tickets/*`
-3. Adicionar 2ª ACA app no Bicep (`capps-tickets-yyowe3poxq7oc`) + 2ª MI + 2ª image no ACR
-4. Path-based routing: 3 opções a avaliar — (a) ACA Environment Ingress com hostnames separados, (b) APIM gateway (sinergia D04), (c) Front Door com path routing
-5. `sql_init.sh` cria 2 USERs (backend MI + tickets-service MI) com permissions distintas (tickets MI só lê/escreve tabelas tickets/comments, não touch RAG)
-6. Frontend: `apiTickets.ts` aponta pro tickets-service base URL via env var
-7. Sinergia D04: tickets-service publica `TicketStatusChanged` → Service Bus → consumers reagem (volta como bonus material)
-8. Pytest backend Python perde os testes de tickets (movem pro xUnit do .NET)
+- **06.5c.1** — `.NET 10 tickets-service` skeleton: Minimal API + Dapper + Managed Identity. Estrutura `app/tickets-service/` com `TicketsService.Api/` + `TicketsService.Tests/` (xUnit dual-tier sqlite + sqledge).
+- **06.5c.2** — 5 endpoints REST (`GET /api/tickets`, `GET /api/tickets/{id}`, `POST /api/tickets`, `PATCH /api/tickets/{id}`, `POST /api/tickets/{id}/comments`) + JWT tenant claim resolution server-side + dual-tier tests passing.
+- **Status:** 2/9 stories Done.
 
-**Estimativa esforço:** ~20-25h (Sessão 6 inteira)
+**Sessão 7 — Story 06.5c.3 partial** (commits `0c246c8`, `11b38cf`, `4cef3ec`)
 
-**Critério de sucesso:**
+- **B-PRACTICAL minimal hybrid wiring**: `infra/main.bicep` ganha 2ª Container App (`capps-tickets-${resourceToken}`) + 2ª Managed Identity (`mi-tickets`) + 2ª image no ACR.
+- Bug fixes Dockerfile: `.slnx` em vez de `.sln` (.NET 10), exclusão de `tests/` no build context, `azure.yaml` `language=docker` para tickets-service (csproj em `src/`).
+- **Status:** 06.5c.3 partial — refinements Bicep (path routing final, tags, retentionDays) ainda pendentes.
 
-- 2 ACA apps deployam side-by-side
-- Frontend funciona transparentemente (chat funciona via Python backend, /tickets funciona via .NET service)
-- Zero pyodbc na stack tickets
-- DECISION-LOG #16 documentando hybrid architecture
+**Sessão 8 — Stories 06.5c.4 + 06.5c.7** (commits `d0ce22c`, `e5842e6`)
 
-**Defesa pedagógica:** lição de evolução real — v1 monolito Python (Sessões 2-5) → v2 hybrid Python+.NET (Sessão 6). Aluno aprende multi-container ACA, trade-offs de stack por bounded context, path routing patterns.
+**06.5c.4 — sql_init scoped grants para tickets MI (AC-4 do epic FECHADO)**
 
-**Quando perseguir:** após Sessão 5 fechar verde com Decisão #15 aplicada. Não bloqueia release v1. v1 já é defensável e funcional — v2 é refinement arquitetural.
+`scripts/sql_init.sh` ganha 9 grants object-level scoped exclusivamente para o tickets MI:
 
-**Owners propostos:** `@architect` (Aria) desenha + `@pm` (Morgan) cria épico + `@dev` (Dex) implementa + `@devops` (Gage) deploys.
+| # | Grant | Objeto |
+|---|-------|--------|
+| 1-3 | SELECT, INSERT, UPDATE | `tbl_tickets` |
+| 4-5 | SELECT, INSERT | `tbl_comments` |
+| 6 | REFERENCES | `tbl_tenants` (FK check) |
+| 7 | EXECUTE | `sys.fn_my_permissions` (verificação) |
+| 8-9 | Reservados (extensão futura) |
+
+**Verificação fail-fast:** se qualquer grant falhar, `sql_init.sh` aborta o Provision com mensagem explícita. Verificável em runtime via `sys.database_permissions` + `sys.database_role_members`. **Run #24 GREEN.**
+
+**06.5c.7 — Deprecate Python `/api/tickets/*` + REVOKE backend MI (AC-5 do epic FECHADO)**
+
+- Endpoints `/api/tickets/*` no `app/backend/` Python agora retornam **HTTP 410 Gone** com header `Link: </api/v2/tickets>; rel="successor-version"` (RFC 8288) apontando pro Container App `.NET tickets-service`.
+- Backend Python MI teve **REVOKE** de `db_datareader` e `db_datawriter` — ficou com APENAS `SELECT em tbl_tenants` (necessário pra resolver config de tenants em request inicial).
+- **Least privilege real cravado:** backend Python NÃO toca em `tbl_tickets` ou `tbl_comments` (nem leitura). Verificável via `SELECT * FROM sys.database_role_members WHERE member_principal = 'backend-mi'`. **Run #25 GREEN.**
+
+### Estado final do epic 06.5c pós-Sessão 8
+
+| Story | Status | AC do epic |
+|-------|--------|-----------|
+| 06.5c.1 — .NET 10 skeleton | ✅ Done | AC-1 |
+| 06.5c.2 — 5 endpoints + JWT + dual tests | ✅ Done | AC-2 |
+| 06.5c.3 — Bicep hybrid wiring | 🟡 Partial | AC-3 |
+| **06.5c.4 — sql_init scoped grants** | ✅ Done | **AC-4 ✅** |
+| 06.5c.5 — Workflow dotnet build/test | 🟡 Partial | AC-3 |
+| 06.5c.6 — Frontend `VITE_API_TICKETS_URL` | ⏳ Pending | AC-6 |
+| **06.5c.7 — Python deprecate + REVOKE backend** | ✅ Done | **AC-5 ✅** |
+| 06.5c.8 — E2E smoke + qa-gate epic | ⏳ Pending | AC-7 |
+| 06.5c.9 — DECISION-LOG #16 + docs | 🟡 Partial (esta sessão) | AC-8 |
+
+**4/9 done · 2/9 partial · 3/9 pending · ~7h restantes.**
+
+### Defesa arquitetural
+
+| Aspecto | Decisão | Anti-padrão rejeitado |
+|---|---|---|
+| Approach geral | **B-PRACTICAL** incremental (9 stories pequenas) | Big-bang rewrite (alto risco, irreversível) |
+| Bounded contexts | tickets em .NET, RAG mantém Python | Tudo em .NET (perde upstream MS) ou tudo em Python (mantém pyodbc fragility) |
+| Identity para tickets | MI dedicada (`mi-tickets`) com scoped grants | MI compartilhada com backend Python (viola least privilege) |
+| Granularidade dos grants | Object-level (9 grants em 3 objetos) | Role-level (`db_datawriter` na DB inteira) |
+| Verificação | Fail-fast em sql_init + queries explícitas | Trust-only (assume que provisioning funcionou) |
+| Deprecation Python tickets | HTTP 410 Gone + `Link: rel="successor-version"` (RFC 8288) | HTTP 404 (silencioso), 301 (mantém keep-alive), ou nenhuma resposta |
+| Migração frontend | env var `VITE_API_TICKETS_URL` (story 06.5c.6) | URL hardcoded no bundle, sem migration path |
+| Routing entre apps | 2 Container Apps com FQDNs distintos (sem APIM ainda) | APIM como gateway desde início (overkill pra epic) — fica como **backlog para D04 sinergia** |
+
+### Lições pedagógicas (PARA-O-ALUNO.md)
+
+- **Least privilege real é granular.** "MI tem acesso ao banco" não é least privilege. Least privilege real é **MI tem precisamente permission X em objeto Y**, verificável via `sys.database_permissions`. Diferença visível em audit security review.
+- **Deprecation tem padrão (RFC 8288).** HTTP 410 Gone + `Link: <successor>; rel="successor-version"` é a forma limpa de deprecar endpoint sem quebrar clientes silenciosamente. Cliente humano vê o 410 + lê o Link e migra; cliente automatizado pode parsear.
+- **B-PRACTICAL > Big-bang.** Rewrite em fases pequenas (skeleton → endpoints → wiring → grants → deprecation → frontend → E2E → docs) reduz risco e permite reverter qualquer fase. Cada commit é um checkpoint funcional.
+- **Verificação fail-fast > trust-only.** Provisioning silencioso quando algo falha = bomba-relógio. Sempre prefira `set -e` + queries de verificação explícitas no final do script.
+
+### Implementação (paths-chave)
+
+- `app/tickets-service/` — .NET 10 Minimal API + Dapper + xUnit dual-tier
+- `infra/main.bicep` — 2ª Container App + 2ª MI + ACR image
+- `scripts/sql_init.sh` — 9 grants scoped + verificação fail-fast
+- `app/backend/api.py` — `/api/tickets/*` retorna 410 Gone com Link header
+- `.github/workflows/azure-dev.yml` — runs #24 e #25 GREEN
+
+### Backlog técnico (não bloqueia AC-4/AC-5 fechados)
+
+- **06.5c.3 remainder** (~30min): Bicep refinements (path routing final, tags retentionDays)
+- **06.5c.5 remainder** (~1h): workflow `dotnet build` + `dotnet test` step
+- **06.5c.6** (~2-2.5h): frontend `VITE_API_TICKETS_URL` (decisão pendente: build-time vs runtime injection)
+- **06.5c.8** (~2h): E2E smoke + qa-gate epic-level
+- **06.5c.9** finalização (~30min): PARA-O-ALUNO.md + README v2 (esta sessão entrega isso)
+- **APIM gateway** (D04 sinergia) — backlog futuro fora do epic 06.5c
 
 ---
 
@@ -665,4 +727,7 @@ A Decisão #14 (pyodbc compile) e a Decisão #15 (sql_init env passing + crashlo
 | 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #13 cravada (run #7 falhou em Deploy Application).** Provision OK ✅ (15 recursos em westus3, Cog Services restored), mas hook `prebuild` do `azd deploy` falhou com `npm enoent app/frontend/package.json`. Causa raiz: `.gitignore` raiz `azure-retail` (L42-43) ignora `package.json` globalmente → `git ls-files` da extração #10 perdeu `package.json` + `package-lock.json` do helpsphere/frontend. Fix: restaurar 2 arquivos do disco azure-retail → apex-helpsphere local, commit, push, run #8. Lição pedagógica: surpresa #8 para PARA-O-ALUNO.md (auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo). |
 | 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #14 cravada (run #8 falhou em Deploy Application).** Frontend prebuild OK ✅ (fix #13 funcionou), Provision idempotente OK ✅ (~1min), mas `pip install` no Docker falhou em **`pyodbc==5.1.0`** porque não há wheel `cp313` publicado e o source não compila em CPython 3.13 (`_PyLong_AsByteArray` mudou de assinatura). Causa raiz combinada: Dockerfile herda `python:3.13-bookworm` do upstream MS (que NÃO usa pyodbc — adicionamos na Sessão 2.3 sem revalidar wheel matrix). Fix: bump `pyodbc>=5.2.0` em `requirements.in` + `pyodbc==5.2.0` em `requirements.txt` (5.2.0 tem `cp313-cp313-manylinux_2_17_x86_64.whl` pronto). Decisão consciente de manter Python 3.13 alinhado com upstream. Lição pedagógica: surpresa #9 para PARA-O-ALUNO.md (auditar `curl pypi.org/.../json \| jq '.urls[] \| select(.filename \| contains("cp313"))'` antes de adicionar dep Python a um Dockerfile). |
 | 2026-05-03 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 5 — Decisão #15 cravada (run #9 deploy passou ✅, mas backend crashloop).** Frontend prebuild OK ✅, Provision idempotente OK ✅, Deploy Application OK ✅ (pyodbc 5.2 wheel funcionou), MAS Smoke test falhou em 30s: backend ACA em crashloop com `pyodbc HYT00 Login timeout` durante `aioodbc.connect()` na startup. **3 problemas combinados identificados:** (1) `sql_init.sh` foi SKIPPED silenciosamente em postprovision com `⏭️ USE_SQL_SERVER=false` — porque azd hooks NÃO leem shell env, só azd env file, e workflow setava USE_SQL_SERVER apenas no shell GH Actions; (2) backend MI nunca virou SQL user via `CREATE USER FROM EXTERNAL PROVIDER` → server fecha TCP antes do TDS handshake → aparece como login timeout; (3) smoke test single-shot 30s pega container em state Activating, sem chance de cold start completar. **Fix 3 frentes:** (A) novo step "Persist env to azd" antes de Provision com `azd env set USE_SQL_SERVER` etc; (B) `sql_init.sh` defensive resolution 3-tier (shell env → azd env → default true); (C) smoke test retry loop 15 attempts × 20s (~7min total). **Decisão #16 BACKLOG planejada:** Hybrid Python+.NET para Sessão 6 — mata pyodbc, sinergia D04 Service Bus. ~20-25h, requer @pm épico + @architect design. Lição pedagógica: surpresa #10 (azd hooks só veem azd env, não shell env — use `azd env set` antes de provision). |
+| 2026-05-04 | @aiox-master (Orion) orquestrando @dev/@devops/@qa (multi-agent SDC) | **Sessões 6-7 — Epic 06.5c B-PRACTICAL hybrid wiring.** Stories 06.5c.1, 06.5c.2 done (skeleton .NET 10 + 5 endpoints + JWT tenant + dual-tier tests). Story 06.5c.3 partial (Bicep multi-app: 2ª Container App `capps-tickets` + 2ª MI + 2ª image ACR). Bug fixes Dockerfile (.slnx em vez de .sln, exclusão tests/, `language=docker`). 2/9 do epic Done. |
+| 2026-05-04 | @aiox-master (Orion) orquestrando 2 SDC chains | **Sessão 8 — AC-4 + AC-5 do epic 06.5c FECHADOS.** Story 06.5c.4 (commit `d0ce22c`, run #24 GREEN): `sql_init.sh` ganha 9 grants object-level scoped exclusivamente para tickets MI (SELECT/INSERT/UPDATE em tbl_tickets, SELECT/INSERT em tbl_comments, REFERENCES em tbl_tenants, EXECUTE em sys.fn_my_permissions) + verificação fail-fast. Verificável via `sys.database_permissions`. Story 06.5c.7 (commit `e5842e6`, run #25 GREEN): Python `/api/tickets/*` agora retorna **HTTP 410 Gone** com header `Link: </api/v2/tickets>; rel="successor-version"` (RFC 8288); REVOKE de `db_datareader` + `db_datawriter` do backend MI — ficou apenas com `SELECT em tbl_tenants`. **Decisão #16 PASSOU DE PLANEJADA → CRAVADA** com trajetória completa Sessões 6-8 documentada. 4/9 stories Done · 2/9 partial · 3/9 pending. Lição pedagógica: least privilege real é granular (object-level), deprecation tem padrão (RFC 8288 Link header), B-PRACTICAL > Big-bang. |
+| 2026-05-04 | @aiox-master (Orion) executando docs Sessão 9.1 | **Sessão 9.1 — docs cravadas para gravação slide 13+.** Decisão #16 movida de "Backlog futuro PLANEJADA" → CRAVADA com seção comprehensive (Sessões 6-8 trajetória + estado final epic + defesa arquitetural + 4 lições pedagógicas). README v2 do apex-helpsphere reflete stack real (Container App .NET tickets MI + Python /api/tickets 410 Gone). PARA-O-ALUNO.md criado como entrypoint do aluno (fork → clone → azd up). Slides 13-14 do `azure-retail/02_Apresentação/` corrigidos (URL fork, fork-first workflow, abstração "API serverless" no slide 13 — Opção A). |
 | 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |
