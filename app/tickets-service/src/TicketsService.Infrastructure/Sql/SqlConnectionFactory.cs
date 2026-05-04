@@ -4,6 +4,7 @@
 // Development = ActiveDirectoryDefault (fallback azd auth login / az login / VS code).
 // Decisão #5 D06: zero password, zero connection string com SQL Auth.
 
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -18,7 +19,7 @@ public sealed partial class SqlConnectionFactory(
 {
     private const int ConnectionTimeoutSeconds = 30;
 
-    public async Task<SqlConnection> CreateOpenConnectionAsync(CancellationToken ct = default)
+    public async Task<DbConnection> CreateOpenConnectionAsync(CancellationToken ct = default)
     {
         var (connStr, authMode, server, database) = BuildConnectionString(config, env);
         LogOpeningConnection(logger, server, database, authMode);

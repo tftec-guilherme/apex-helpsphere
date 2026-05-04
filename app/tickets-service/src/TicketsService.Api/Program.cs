@@ -1,4 +1,4 @@
-// HelpSphere tickets-service — Minimal API skeleton (Story 06.5c.1)
+// HelpSphere tickets-service — Minimal API (Story 06.5c.1 + Story 06.5c.2)
 // =============================================================================
 // Defesa arquitetural (resumo — detalhes em apex-helpsphere/DECISION-LOG.md #16):
 //
@@ -15,14 +15,23 @@
 //   * AAD-only auth — zero password
 //   * JWT obrigatório em endpoints autenticados (exceto /health)
 //   * MI scoped grants reais (tickets MI vê só tbl_tickets/comments + RO tenants)
-//   * tenant_id resolvido server-side via JWT claim (Story 06.5c.2)
+//   * tenant_id resolvido server-side via JWT custom claim 'app_tenant_id' (Q1B)
+//   * State machine ITSM canônico Open→InProgress→Resolved + Escalated cruzado (Q3B)
+//   * Cross-tenant 404 (não 403) — OWASP A01:2021
+//   * Transação atômica em /transitions (UPDATE status + INSERT auto-comment)
 // =============================================================================
 
 using System.Diagnostics;
+using System.Text.Json;
 using Dapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
+using TicketsService.Api.Endpoints;
+using TicketsService.Api.Middleware;
+using TicketsService.Domain.Tickets.Enums;
+using TicketsService.Infrastructure.Auth;
 using TicketsService.Infrastructure.Sql;
+using TicketsService.Infrastructure.Sql.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,14 +43,49 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// HTTP context para resolver claims em ITenantContext / IUserContext (Story 06.5c.2 T3)
+builder.Services.AddHttpContextAccessor();
+
+// Snake_case JSON serialization (espelha v1 Python contract: subject, attachment_blob_paths, target_status)
+// + smart enum converters explícitos (não depender de [JsonConverter] attribute em record primary ctor)
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+    options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
+    options.SerializerOptions.Converters.Add(new TicketStatusJsonConverter());
+    options.SerializerOptions.Converters.Add(new TicketCategoryJsonConverter());
+    options.SerializerOptions.Converters.Add(new TicketPriorityJsonConverter());
+});
+
+// SQL connection (herdado da Story 06.5c.1)
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+
+// SQL dialect (Story 06.5c.2 D-disc — production = SqlServer; tests podem override SqliteDialect)
+builder.Services.AddSingleton<ISqlDialect, SqlServerDialect>();
+
+// Auth contexts (Scoped — depende de HttpContext per request)
+builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<IUserContext, UserContext>();
+
+// Repositories (Scoped — connection lifecycle por request)
+builder.Services.AddScoped<ITicketsRepository, TicketsRepository>();
+builder.Services.AddScoped<ICommentsRepository, CommentsRepository>();
+builder.Services.AddScoped<ITenantsRepository, TenantsRepository>();
+
+// Global exception handler (.NET 10 IExceptionHandler nativo)
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+// Register Dapper TypeHandlers para smart enums (TicketStatus, Category, Priority)
+DapperTypeHandlerRegistration.RegisterAll();
+
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// AC-2: Health endpoint — sem auth, sem SQL (in-memory) — sobrevive smoke test
+// AC-2 (06.5c.1): Health endpoint — sem auth, sem SQL (in-memory) — sobrevive smoke
 // mesmo se SQL temporariamente indisponível.
 app.MapGet("/health", () => Results.Ok(new
 {
@@ -51,8 +95,7 @@ app.MapGet("/health", () => Results.Ok(new
 .AllowAnonymous()
 .WithName("Health");
 
-// AC-3: SQL ping — exige JWT, executa SELECT 1 via Dapper, mede latência.
-// Endpoint de smoke pós-deploy para validar conectividade SQL + MI auth.
+// AC-3 (06.5c.1): SQL ping — exige JWT, executa SELECT 1 via Dapper, mede latência.
 app.MapGet("/internal/sql-ping", async (
     ISqlConnectionFactory factory,
     CancellationToken ct) =>
@@ -70,6 +113,9 @@ app.MapGet("/internal/sql-ping", async (
 })
 .RequireAuthorization()
 .WithName("SqlPing");
+
+// Story 06.5c.2 — 5 endpoints REST sob /api/tickets/*
+app.MapTicketsEndpoints();
 
 await app.RunAsync().ConfigureAwait(false);
 

@@ -1,15 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\TicketsService.Domain\TicketsService.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Story 06.5c.2 D-disc: FrameworkReference Microsoft.AspNetCore.App
+         habilita IHttpContextAccessor + transitivamente fornece
+         Configuration.Abstractions, Hosting.Abstractions, Logging.Abstractions
+         (que estavam explícitos em 06.5c.1 mas viraram redundantes — NU1510). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.72" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
   </ItemGroup>
 
   <PropertyGroup>

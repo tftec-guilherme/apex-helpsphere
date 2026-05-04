@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,8 +6,11 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <!-- Story 06.5c.1: xUnit usa convenção Method_Scenario_Expected (universal),
-         e perf rules (CA1859) não aplicam a fakes/stubs de teste. -->
-    <NoWarn>$(NoWarn);CA1707;CA1859</NoWarn>
+         e perf rules (CA1859) não aplicam a fakes/stubs de teste.
+         Story 06.5c.2: CA2007 (ConfigureAwait) não aplica a tests xUnit (sem SyncCtx).
+         Story 06.5c.2: CA1861 (constant array as arg) e CA1826 (Enumerable on indexable)
+         são noise em tests com dados inline. -->
+    <NoWarn>$(NoWarn);CA1707;CA1859;CA2007;CA1861;CA1826</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +19,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!-- Story 06.5c.2 — dual-tier integration tests -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.10" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.2.0" />
+    <PackageReference Include="Dapper" Version="2.1.72" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +31,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TicketsService.Api\TicketsService.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Fixtures\sqlite-schema.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
