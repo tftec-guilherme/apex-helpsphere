@@ -8,6 +8,16 @@ metadata:
 requiredVersions:
   azd: ">= 1.23.6"
 services:
+  # HelpSphere — Story 06.5c.3 (B-PRACTICAL): tickets-service hybrid microservice
+  # .NET 10 Minimal API — entrega Story 06.5c.2 (5 endpoints REST + JWT/tenant_id).
+  # Image build via remoteBuild (azd → ACR Tasks → Dockerfile multi-stage alpine).
+  # ACA app provisionado pelo Bicep (módulo acaTickets em main.bicep).
+  tickets-service:
+    project: ./app/tickets-service
+    language: dotnet
+    host: containerapp
+    docker:
+      remoteBuild: true
   backend:
     project: ./app/backend
     language: py

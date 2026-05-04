@@ -393,6 +393,14 @@ param containerRegistryName string = deploymentTarget == 'containerapps'
   ? '${replace(toLower(environmentName), '-', '')}acr'
   : ''
 
+// HelpSphere — Story 06.5c.3 (B-PRACTICAL): tickets-service hybrid microservice
+// 2nd UMI distinta (Epic AC-4: 2 MIs scoped) + 2nd ACA app side-by-side com backend Python.
+// Grants SQL scoped vão para Story 06.5c.4 (sql_init); Story 06.5c.5 traz workflow .NET CI.
+param acaTicketsIdentityName string = deploymentTarget == 'containerapps' ? '${environmentName}-aca-tickets-identity' : ''
+@description('Used by azd for tickets-service container app deployment')
+param ticketsAppExists bool = false
+param ticketsServiceName string = ''
+
 // Configure CORS for allowing different web apps to use the backend
 // For more information please see https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 var msftAllowedOrigins = [ 'https://portal.azure.com', 'https://ms.portal.azure.com' ]
@@ -699,6 +707,58 @@ module acaAuth 'core/host/container-apps-auth.bicep' = if (deploymentTarget == '
     enableUnauthenticatedAccess: enableUnauthenticatedAccess
     blobContainerUri: 'https://${storageAccountName}.blob.${environment().suffixes.storage}/${tokenStorageContainerName}'
     appIdentityResourceId: (deploymentTarget == 'appservice') ? '' : acaBackend!.outputs.identityResourceId
+  }
+}
+
+// ============================================================================
+// HelpSphere — Story 06.5c.3 (B-PRACTICAL minimal hybrid wiring)
+// 2nd ACA app: tickets-service (.NET 10 Minimal API + Dapper + MI auth)
+// Story 06.5c.2 entrega skeleton + 5 endpoints; este Bicep entrega o host.
+// ============================================================================
+
+// User-assigned identity DEDICADA ao tickets-service (Epic AC-4: 2 MIs scoped)
+module acaTicketsIdentity 'core/security/aca-identity.bicep' = if (deploymentTarget == 'containerapps') {
+  name: 'aca-tickets-identity'
+  scope: resourceGroup
+  params: {
+    identityName: acaTicketsIdentityName
+    location: location
+  }
+}
+
+// Container App tickets-service — image será pushed pelo `azd deploy` (azure.yaml service entry).
+// Default image (helloworld) usado ANTES do primeiro deploy; substituído ao primeiro `azd deploy`.
+// Env vars mínimos: AZURE_CLIENT_ID (UMI MI auth), AzureAd__* (JWT bootstrap), AZURE_SQL_*
+// (necessário só para /api/tickets/*; /health não toca SQL).
+module acaTickets 'core/host/container-app-upsert.bicep' = if (deploymentTarget == 'containerapps') {
+  name: 'aca-tickets'
+  scope: resourceGroup
+  params: {
+    name: !empty(ticketsServiceName) ? ticketsServiceName : '${abbrs.webSitesContainerApps}tickets-${resourceToken}'
+    location: location
+    identityName: (deploymentTarget == 'containerapps') ? acaTicketsIdentityName : ''
+    exists: ticketsAppExists
+    containerRegistryName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.registryName : ''
+    containerAppsEnvironmentName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.environmentName : ''
+    tags: union(tags, { 'azd-service-name': 'tickets-service' })
+    targetPort: 8080
+    containerCpuCoreCount: '0.5'
+    containerMemory: '1.0Gi'
+    containerMinReplicas: 0
+    allowedOrigins: allowedOrigins
+    env: {
+      // SqlConnectionFactory: MI auth em prod (UMI clientId), AAD Default em dev
+      AZURE_CLIENT_ID: (deploymentTarget == 'containerapps') ? acaTicketsIdentity!.outputs.clientId : ''
+      AZURE_SQL_SERVER: useSqlServer ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
+      AZURE_SQL_DATABASE: useSqlServer ? sqlDatabaseName : ''
+      // Microsoft.Identity.Web JWT bootstrap (placeholder GUIDs aceitos se Audience nunca check)
+      AzureAd__Instance: environment().authentication.loginEndpoint
+      AzureAd__TenantId: !empty(authTenantId) ? authTenantId : tenantId
+      AzureAd__ClientId: !empty(clientAppId) ? clientAppId : '00000000-0000-0000-0000-000000000000'
+      AzureAd__Audience: !empty(clientAppId) ? 'api://${clientAppId}' : 'api://00000000-0000-0000-0000-000000000000'
+      ASPNETCORE_ENVIRONMENT: 'Production'
+      ASPNETCORE_URLS: 'http://+:8080'
+    }
   }
 }
 
@@ -1624,7 +1684,9 @@ module documentIntelligenceRoleBackend 'core/security/role.bicep' = if (useUserU
 
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenantId
-output AZURE_AUTH_TENANT_ID string = authTenantId
+// Story 06.5c.3 (B-PRACTICAL): AZURE_AUTH_TENANT_ID removido para abrir slot
+// para TICKETS_BACKEND_URI (max-outputs=64). Não usado em nosso flow com
+// AZURE_USE_AUTHENTICATION=false. Re-adicionar se Story 06.5c.6 ativar auth real.
 output AZURE_RESOURCE_GROUP string = resourceGroup.name
 
 // Shared by all OpenAI deployments
@@ -1703,6 +1765,11 @@ output TEXT_PROCESSOR_SKILL_AUTH_RESOURCE_ID string = useCloudIngestion ? functi
 output AZURE_USE_AUTHENTICATION bool = useAuthentication
 
 output BACKEND_URI string = deploymentTarget == 'appservice' ? backend!.outputs.uri : acaBackend!.outputs.uri
+
+// HelpSphere — Story 06.5c.3 (B-PRACTICAL): tickets-service URI para smoke test
+// Nota: AZURE_TICKETS_CLIENT_ID NÃO é exportado (max-outputs=64). UMI clientId já é
+// passado via env var AZURE_CLIENT_ID dentro do ACA tickets (suficiente para MI auth).
+output TICKETS_BACKEND_URI string = deploymentTarget == 'containerapps' ? acaTickets!.outputs.uri : ''
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = deploymentTarget == 'containerapps'
   ? containerApps!.outputs.registryLoginServer
   : ''
