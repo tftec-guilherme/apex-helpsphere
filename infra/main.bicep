@@ -1174,7 +1174,7 @@ module ai 'core/ai/ai-environment.bicep' = if (useAiProject) {
 // HelpSphere — Story 06.5a Sessão 2.3 — Azure SQL Server (AVM)
 //
 // Production-grade (Decisão #5 do DECISION-LOG):
-// - SKU GP_S_Gen5_2 (Serverless, autoPause 60min para FinOps em ambiente de aula)
+// - SKU GP_S_Gen5_2 (Serverless com autoPause DESABILITADO — Decisão #18)
 // - AAD admin via Entra Group (turnover-resilient, audit-friendly, CAF-aligned)
 // - azureADOnlyAuthentication=true: SEM SQL auth tradicional, apenas Entra
 // - publicNetworkAccess controlado pelo param geral (default Enabled, override
@@ -1216,7 +1216,13 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
           capacity: 2
         }
         // Sessão 3.5: AVM sql/server:0.10.0 usa interface flat para DB props — Decisão #9
-        autoPauseDelay: 60
+        // Sessão 9.2 (Decisão #18): autoPauseDelay = -1 (DESABILITADO).
+        // Trade-off: ~$15-30/mês a mais vs interrupção do app durante demo.
+        // Cold-start de Serverless paused leva 30-60s; backend Python (Connection
+        // Timeout=60s) cobre, mas tickets-service .NET pode ter primeira request
+        // lenta. Para ambiente de aula gravada, confiabilidade > FinOps savings.
+        // Aluno em produção pode mudar para 60min aceitando o trade-off.
+        autoPauseDelay: -1
         minCapacity: '0.5'
         maxSizeBytes: 2147483648 // 2 GiB — suficiente para HelpSphere de aula
         // Sessão 4 (Decisão #11): zone redundancy explicitamente false.
