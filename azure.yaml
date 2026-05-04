@@ -12,9 +12,13 @@ services:
   # .NET 10 Minimal API — entrega Story 06.5c.2 (5 endpoints REST + JWT/tenant_id).
   # Image build via remoteBuild (azd → ACR Tasks → Dockerfile multi-stage alpine).
   # ACA app provisionado pelo Bicep (módulo acaTickets em main.bicep).
+  # language=docker (não dotnet) porque .csproj está em src/TicketsService.Api/
+  # (estrutura solution multi-projeto), mas Dockerfile fica no root da solution
+  # com COPY paths relativos esperando context=app/tickets-service/.
+  # azd com language=docker pula detecção .csproj e usa Dockerfile direto.
   tickets-service:
     project: ./app/tickets-service
-    language: dotnet
+    language: docker
     host: containerapp
     docker:
       remoteBuild: true
