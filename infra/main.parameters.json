@@ -394,6 +394,24 @@
     },
     "loadSeedData": {
       "value": "${AZURE_LOAD_SEED_DATA=true}"
+    },
+    "pythonVersion": {
+      "value": "${PYTHON_VERSION=3.13}"
+    },
+    "additionalCorsOrigins": {
+      "value": []
+    },
+    "skipPrepdocs": {
+      "value": "${SKIP_PREPDOCS=false}"
+    },
+    "enableChat": {
+      "value": "${ENABLE_CHAT=false}"
+    },
+    "tokenAudienceFormat": {
+      "value": "${TOKEN_AUDIENCE_FORMAT=v2}"
+    },
+    "sqlAutoPauseDelay": {
+      "value": "${AZURE_SQL_AUTO_PAUSE_DELAY=-1}"
     }
   }
 }

@@ -401,6 +401,30 @@ param acaTicketsIdentityName string = deploymentTarget == 'containerapps' ? '${e
 param ticketsAppExists bool = false
 param ticketsServiceName string = ''
 
+// HelpSphere v2.1.0 (Sessão 9.5) — parametrização CI-first
+// Decisões 4.1, 4.2, 4.3, 4.5 + Decisão #18 (autoPauseDelay parametrizado).
+@description('Python runtime version for backend (default: 3.13 — wheels estaveis para todas as deps).')
+param pythonVersion string = '3.13'
+
+@description('CORS origins adicionais para tickets-service (alem do backend FQDN). Util para dev local.')
+param additionalCorsOrigins array = []
+
+// CONTRATO Wave 1.C / Wave 3.F: estes 2 params declarados aqui mas consumidos por hooks do azure.yaml
+// (skipPrepdocs) e bundler do frontend (enableChat). Linter avisa "no-unused-params" — aceitavel,
+// proximas waves usam via outputs/azd env. Não remover sem coordenar com Subagent C/F.
+@description('Pula execucao do prepdocs.py no postdeploy (acelera azd up em ~3min mas chat/RAG nao funciona ate aluno rodar manual).')
+param skipPrepdocs bool = false
+
+@description('Habilita chat na UI. Default false — chat e ativado no Lab Intermediario.')
+param enableChat bool = false
+
+@description('Audience format aceito pelo tickets-service. v2 (GUID) e o default; "v1" (api://) so para compat com tokens legacy.')
+@allowed(['v2', 'v1', 'both'])
+param tokenAudienceFormat string = 'v2'
+
+@description('SQL Database autoPauseDelay em minutos. -1 = sempre online. 60 = pausa apos 60min idle.')
+param sqlAutoPauseDelay int = -1
+
 // Configure CORS for allowing different web apps to use the backend
 // For more information please see https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 var msftAllowedOrigins = [ 'https://portal.azure.com', 'https://ms.portal.azure.com' ]
@@ -607,7 +631,8 @@ module backend 'core/host/appservice.bicep' = if (deploymentTarget == 'appservic
     // Need to check deploymentTarget again due to https://github.com/Azure/bicep/issues/3990
     appServicePlanId: deploymentTarget == 'appservice' ? appServicePlan!.outputs.id : ''
     runtimeName: 'python'
-    runtimeVersion: '3.11'
+    // v2.1.0 (Decisão 4.5): Python pin único — Bicep + Dockerfile + .python-version.
+    runtimeVersion: pythonVersion
     appCommandLine: 'python3 -m gunicorn main:app'
     scmDoBuildDuringDeployment: true
     managedIdentity: true
@@ -722,6 +747,29 @@ module acaAuth 'core/host/container-apps-auth.bicep' = if (deploymentTarget == '
 // Story 06.5c.2 entrega skeleton + 5 endpoints; este Bicep entrega o host.
 // ============================================================================
 
+// v2.1.0 (Decisão 4.2): tickets audience parametrizado.
+// Microsoft.Identity.Web aceita string única ou lista separada por espaço em ValidAudiences.
+var ticketsAudience = !empty(serverAppId)
+  ? (tokenAudienceFormat == 'v2'
+      ? serverAppId
+      : (tokenAudienceFormat == 'v1'
+          ? 'api://${serverAppId}'
+          : 'api://${serverAppId} ${serverAppId}'))
+  : '00000000-0000-0000-0000-000000000000'
+
+// v2.1.0 (Decisão 4.3): tickets-service CORS = backend FQDN auto-resolvido + portals MS + extras opt-in.
+// `allowedOrigins` (var existente) já contém origins do portal Azure + clientes legacy via env.
+// NOTA: não podemos usar `acaBackend.outputs.uri` aqui — `acaBackend` depende de `acaTickets`
+// (env var TICKETS_BACKEND_URI), o que criaria ciclo. Construimos o FQDN deterministicamente
+// a partir de `containerApps.outputs.defaultDomain` + `backendServiceName` (mesmo padrão do `name` em acaBackend).
+var backendAcaName = !empty(backendServiceName) ? backendServiceName : '${abbrs.webSitesContainerApps}backend-${resourceToken}'
+var backendAcaFqdn = (deploymentTarget == 'containerapps') ? 'https://${backendAcaName}.${containerApps!.outputs.defaultDomain}' : ''
+var ticketsAllowedOrigins = union(
+  allowedOrigins,
+  !empty(backendAcaFqdn) ? [ backendAcaFqdn ] : [],
+  additionalCorsOrigins
+)
+
 // User-assigned identity DEDICADA ao tickets-service (Epic AC-4: 2 MIs scoped)
 module acaTicketsIdentity 'core/security/aca-identity.bicep' = if (deploymentTarget == 'containerapps') {
   name: 'aca-tickets-identity'
@@ -751,20 +799,27 @@ module acaTickets 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
     containerCpuCoreCount: '0.5'
     containerMemory: '1.0Gi'
     containerMinReplicas: 0
-    allowedOrigins: allowedOrigins
+    allowedOrigins: ticketsAllowedOrigins
     env: {
       // SqlConnectionFactory: MI auth em prod (UMI clientId), AAD Default em dev
       AZURE_CLIENT_ID: (deploymentTarget == 'containerapps') ? acaTicketsIdentity!.outputs.clientId : ''
       AZURE_SQL_SERVER: useSqlServer ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
       AZURE_SQL_DATABASE: useSqlServer ? sqlDatabaseName : ''
       // Microsoft.Identity.Web JWT bootstrap — usa serverAppId (o resource da API), nao clientAppId.
-      // Tokens sao emitidos com aud=api://{serverAppId} quando frontend pede scope api://{serverAppId}/access_as_user.
+      // v2.1.0 (Decisão 4.2): audience format parametrizado — default v2 (GUID puro).
+      // - v2 → tokens v2 nativos (aud = serverAppId GUID, sem prefix)
+      // - v1 → compat legado (aud = api://{serverAppId})
+      // - both → aceita ambos (Microsoft.Identity.Web ValidAudiences[] separado por espaço)
       AzureAd__Instance: environment().authentication.loginEndpoint
       AzureAd__TenantId: !empty(authTenantId) ? authTenantId : tenantId
       AzureAd__ClientId: !empty(serverAppId) ? serverAppId : '00000000-0000-0000-0000-000000000000'
-      AzureAd__Audience: !empty(serverAppId) ? 'api://${serverAppId}' : 'api://00000000-0000-0000-0000-000000000000'
+      AzureAd__Audience: ticketsAudience
       ASPNETCORE_ENVIRONMENT: 'Production'
       ASPNETCORE_URLS: 'http://+:8080'
+      // v2.1.0 (Decisão 4.1): Alpine .NET base image sem ICU full → NLS culture-invariant.
+      // 'false' força .NET a usar ICU instalado (apk add icu-libs no Dockerfile) e evitar
+      // crashes em culture lookups (ex: DateTime.Parse pt-BR, decimal separator, etc).
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 'false'
     }
   }
 }
@@ -1223,13 +1278,14 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
           capacity: 2
         }
         // Sessão 3.5: AVM sql/server:0.10.0 usa interface flat para DB props — Decisão #9
-        // Sessão 9.2 (Decisão #18): autoPauseDelay = -1 (DESABILITADO).
+        // Sessão 9.2 (Decisão #18): autoPauseDelay default = -1 (DESABILITADO).
+        // v2.1.0 (Sessão 9.5): parametrizado via `sqlAutoPauseDelay`.
         // Trade-off: ~$15-30/mês a mais vs interrupção do app durante demo.
         // Cold-start de Serverless paused leva 30-60s; backend Python (Connection
         // Timeout=60s) cobre, mas tickets-service .NET pode ter primeira request
         // lenta. Para ambiente de aula gravada, confiabilidade > FinOps savings.
-        // Aluno em produção pode mudar para 60min aceitando o trade-off.
-        autoPauseDelay: -1
+        // Aluno em produção pode setar AZURE_SQL_AUTO_PAUSE_DELAY=60 (azd env) aceitando o trade-off.
+        autoPauseDelay: sqlAutoPauseDelay
         minCapacity: '0.5'
         maxSizeBytes: 2147483648 // 2 GiB — suficiente para HelpSphere de aula
         // Sessão 4 (Decisão #11): zone redundancy explicitamente false.
@@ -1808,3 +1864,8 @@ output AZURE_SQL_TICKETS_MI_NAME string = useSqlServer && deploymentTarget == 'c
   ? acaTicketsIdentityName
   : ''
 output AZURE_LOAD_SEED_DATA bool = loadSeedData
+
+// HelpSphere v2.1.0 (Sessão 9.5) — params parametrizados (pythonVersion, additionalCorsOrigins,
+// skipPrepdocs, enableChat, tokenAudienceFormat, sqlAutoPauseDelay) NÃO são exportados como outputs:
+// limite ARM de 64 outputs já saturado. Hooks/scripts leem direto do azd env via SKIP_PREPDOCS,
+// ENABLE_CHAT, TOKEN_AUDIENCE_FORMAT, etc. (mapeamento em main.parameters.json).
