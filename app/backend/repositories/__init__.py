@@ -11,6 +11,7 @@ endpoints /api/tickets/* CRUD migraram para tickets-service .NET (Decisão
 TenantsRepository PRESERVADO (D4 da 06.5c.7): backend continua precisando de
 SELECT em tbl_tenants para chat session validation.
 """
+
 from ._pool import create_sql_pool
 from .tenants import TenantsRepository
 

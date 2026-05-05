@@ -42,6 +42,7 @@ Production-grade rationale (Decisão #5 + Decisão #16 + Story 06.5c.7):
   sys.database_role_members): backend só tem SELECT em tbl_tenants; tickets tem
   CRUD em tbl_tickets/tbl_comments + SELECT em tbl_tenants. Nada mais.
 """
+
 from __future__ import annotations
 
 import os
@@ -93,9 +94,7 @@ def _open_admin_connection(server: str, database: str) -> pyodbc.Connection:
 def _validate_mi_name(mi_display_name: str) -> None:
     """T6 (Story 06.5c.4): regex whitelist defense-in-depth contra T-SQL injection."""
     if not _MI_NAME_RE.fullmatch(mi_display_name):
-        raise ValueError(
-            f"MI display name inválido (esperado [a-zA-Z0-9_-]+): {mi_display_name!r}"
-        )
+        raise ValueError(f"MI display name inválido (esperado [a-zA-Z0-9_-]+): {mi_display_name!r}")
 
 
 def _create_mi_user(
@@ -123,31 +122,25 @@ def _create_mi_user(
     print(f"👤 Criando USER no banco para MI '{mi_display_name}' (idempotente)...")
     # USER FROM EXTERNAL PROVIDER referencia a Managed Identity pelo display name
     # no Entra (= nome do recurso da MI). Idempotência via IF NOT EXISTS.
-    cur.execute(
-        f"""
+    cur.execute(f"""
         IF NOT EXISTS (
             SELECT 1 FROM sys.database_principals WHERE name = N'{mi_display_name}'
         )
         BEGIN
             CREATE USER [{mi_display_name}] FROM EXTERNAL PROVIDER;
         END
-        """
-    )
+        """)
 
     if grants is None:
         # Backend MI legacy path — db_datareader + db_datawriter (D1: até 06.5c.7 revogar)
         cur.execute(f"ALTER ROLE db_datareader ADD MEMBER [{mi_display_name}];")
         cur.execute(f"ALTER ROLE db_datawriter ADD MEMBER [{mi_display_name}];")
-        print(
-            f"✅ '{mi_display_name}' + db_datareader + db_datawriter (legacy backend MI — D1)"
-        )
+        print(f"✅ '{mi_display_name}' + db_datareader + db_datawriter (legacy backend MI — D1)")
     else:
         # Tickets MI scoped path — object-level grants (idempotente nativo, sem IF NOT EXISTS)
         for grant_stmt in grants:
             cur.execute(grant_stmt)
-        print(
-            f"✅ '{mi_display_name}' + {len(grants)} object-level grants (scoped — least privilege)"
-        )
+        print(f"✅ '{mi_display_name}' + {len(grants)} object-level grants (scoped — least privilege)")
 
 
 def _verify_grants(
@@ -168,15 +161,13 @@ def _verify_grants(
         SystemExit(1) se actual != expected (Bicep typo, schema drift, etc.).
     """
     _validate_mi_name(mi_display_name)
-    cur.execute(
-        f"""
+    cur.execute(f"""
         SELECT OBJECT_NAME(major_id), permission_name
         FROM sys.database_permissions
         WHERE grantee_principal_id = USER_ID(N'{mi_display_name}')
             AND class = 1
             AND state_desc = 'GRANT'
-        """
-    )
+        """)
     actual = {(row[0], row[1].strip()) for row in cur.fetchall()}
     if actual != expected:
         missing = expected - actual
@@ -221,15 +212,13 @@ def _verify_no_role_memberships(
         SystemExit(1) se actual_roles ∩ forbidden ≠ ∅.
     """
     _validate_mi_name(mi_display_name)
-    cur.execute(
-        f"""
+    cur.execute(f"""
         SELECT dp.name
         FROM sys.database_role_members rm
         JOIN sys.database_principals dp ON dp.principal_id = rm.role_principal_id
         JOIN sys.database_principals u ON u.principal_id = rm.member_principal_id
         WHERE u.name = N'{mi_display_name}'
-        """
-    )
+        """)
     actual_roles = {row[0] for row in cur.fetchall()}
     intersection = forbidden & actual_roles
     if intersection:
@@ -240,8 +229,7 @@ def _verify_no_role_memberships(
         print(f"   Roles atuais: {sorted(actual_roles)}", file=sys.stderr)
         sys.exit(1)
     print(
-        f"✅ '{mi_display_name}' sem roles broad {sorted(forbidden)} "
-        f"(least privilege real cravado — Story 06.5c.7)"
+        f"✅ '{mi_display_name}' sem roles broad {sorted(forbidden)} " f"(least privilege real cravado — Story 06.5c.7)"
     )
 
 

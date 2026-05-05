@@ -1,4 +1,5 @@
 """Tenants repository — lookup e validação dos 5 tenants Apex."""
+
 from __future__ import annotations
 
 import logging
@@ -25,8 +26,7 @@ class TenantsRepository:
         """Retorna tenant pelo GUID, ou None se não existir."""
         async with self.pool.acquire() as conn, conn.cursor() as cur:
             await cur.execute(
-                "SELECT tenant_id, brand_name, created_at "
-                "FROM dbo.tbl_tenants WHERE tenant_id = ?",
+                "SELECT tenant_id, brand_name, created_at " "FROM dbo.tbl_tenants WHERE tenant_id = ?",
                 [tenant_id],
             )
             row = await cur.fetchone()
@@ -37,10 +37,7 @@ class TenantsRepository:
     async def list_all(self) -> list[dict[str, Any]]:
         """Lista todos os tenants (uso admin / debug — baixa cardinalidade, sem paginação)."""
         async with self.pool.acquire() as conn, conn.cursor() as cur:
-            await cur.execute(
-                "SELECT tenant_id, brand_name, created_at "
-                "FROM dbo.tbl_tenants ORDER BY brand_name"
-            )
+            await cur.execute("SELECT tenant_id, brand_name, created_at " "FROM dbo.tbl_tenants ORDER BY brand_name")
             return [_row_to_tenant(r) for r in await cur.fetchall()]
 
 

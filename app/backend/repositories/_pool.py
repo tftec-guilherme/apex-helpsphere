@@ -16,6 +16,7 @@ em tbl_tenants para chat session validation) não justifica pool warmup.
 Em dev local: `DefaultAzureCredential` (azd auth login / az login / VS Code).
 Em produção: `ManagedIdentityCredential(client_id=AZURE_CLIENT_ID)`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,18 +62,12 @@ class MITokenConnectionFactory:
         """
         with self._token_lock:
             now = datetime.now(timezone.utc)
-            if (
-                self._cached_struct_token
-                and self._cached_until
-                and now < self._cached_until
-            ):
+            if self._cached_struct_token and self._cached_until and now < self._cached_until:
                 return self._cached_struct_token
 
             token = self._credential.get_token(self._scope)
             token_bytes = token.token.encode("utf-16-le")
-            self._cached_struct_token = struct.pack(
-                f"=i{len(token_bytes)}s", len(token_bytes), token_bytes
-            )
+            self._cached_struct_token = struct.pack(f"=i{len(token_bytes)}s", len(token_bytes), token_bytes)
             self._cached_until = now + timedelta(minutes=TOKEN_CACHE_TTL_MIN)
             logger.info(
                 "AAD token refreshed | scope=%s | cached_until=%s",

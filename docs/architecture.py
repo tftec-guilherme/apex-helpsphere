@@ -22,6 +22,7 @@ Decisões refletidas (vide DECISION-LOG.md):
 - #17 Token AAD explícito (workaround ODBC Driver 18 + UMI Linux)
 - #18 SQL Serverless autoPauseDelay = -1 (confiabilidade > FinOps)
 """
+
 from diagrams import Cluster, Diagram, Edge
 from diagrams.azure.compute import ContainerApps, ContainerRegistries
 from diagrams.azure.database import SQLDatabases
@@ -91,12 +92,8 @@ def render(outformat: str = "png") -> None:
                 "labelloc": "t",
             },
         ):
-            backend = ContainerApps(
-                "Backend Python\nQuart + gunicorn\n/chat /ask /upload\n/api/tickets/* → 410 Gone"
-            )
-            tickets = ContainerApps(
-                "Tickets-service .NET 10\nMinimal API + Dapper\n5 endpoints REST + JWT auth"
-            )
+            backend = ContainerApps("Backend Python\nQuart + gunicorn\n/chat /ask /upload\n/api/tickets/* → 410 Gone")
+            tickets = ContainerApps("Tickets-service .NET 10\nMinimal API + Dapper\n5 endpoints REST + JWT auth")
 
         # ===============================================================
         # Identity perimeter (Zero Trust)
@@ -111,12 +108,8 @@ def render(outformat: str = "png") -> None:
                 "labelloc": "t",
             },
         ):
-            mi_backend = ManagedIdentities(
-                "User-Assigned MI\nbackend (Python)"
-            )
-            mi_tickets = ManagedIdentities(
-                "User-Assigned MI\ntickets-service (.NET)"
-            )
+            mi_backend = ManagedIdentities("User-Assigned MI\nbackend (Python)")
+            mi_tickets = ManagedIdentities("User-Assigned MI\ntickets-service (.NET)")
 
         # ===============================================================
         # Persistence
@@ -151,9 +144,7 @@ def render(outformat: str = "png") -> None:
         ):
             openai = CognitiveServices("Azure OpenAI\ngpt-4.1-mini\n+ emb-3-large")
             search = Search("AI Search\nsemantic ranker")
-            vision = CognitiveServices(
-                "Doc Intelligence\n+ AI Vision\n(OCR · layout)"
-            )
+            vision = CognitiveServices("Doc Intelligence\n+ AI Vision\n(OCR · layout)")
 
         # ===============================================================
         # Observability + DevOps
@@ -176,21 +167,33 @@ def render(outformat: str = "png") -> None:
         # Edges — request flow
         # ===============================================================
         users >> Edge(label="HTTPS · Entra ID JWT", color="#0078D4", style="bold") >> spa
-        spa >> Edge(
-            label="/chat /ask /upload\nVITE_API_BACKEND_URL",
-            color="#0078D4",
-        ) >> backend
-        spa >> Edge(
-            label="/api/tickets/*\nVITE_API_TICKETS_URL",
-            color="#0078D4",
-        ) >> tickets
+        (
+            spa
+            >> Edge(
+                label="/chat /ask /upload\nVITE_API_BACKEND_URL",
+                color="#0078D4",
+            )
+            >> backend
+        )
+        (
+            spa
+            >> Edge(
+                label="/api/tickets/*\nVITE_API_TICKETS_URL",
+                color="#0078D4",
+            )
+            >> tickets
+        )
 
         # Deprecation flow (Decisão #16) — Python redireciona pro .NET via Link header
-        backend >> Edge(
-            label="410 Gone + Link\nrel=successor-version (RFC 8288)",
-            color="#D83B01",
-            style="dashed",
-        ) >> tickets
+        (
+            backend
+            >> Edge(
+                label="410 Gone + Link\nrel=successor-version (RFC 8288)",
+                color="#D83B01",
+                style="dashed",
+            )
+            >> tickets
+        )
 
         # ===============================================================
         # Edges — MI auth (least privilege real verificável)
@@ -198,16 +201,24 @@ def render(outformat: str = "png") -> None:
         backend >> Edge(label="MI", color="#605E5C", style="dotted") >> mi_backend
         tickets >> Edge(label="MI", color="#605E5C", style="dotted") >> mi_tickets
 
-        mi_backend >> Edge(
-            label="SELECT em tbl_tenants\nAPENAS (Decisão #17)",
-            color="#107C10",
-            fontcolor="#107C10",
-        ) >> sql
-        mi_tickets >> Edge(
-            label="9 grants scoped\nobject-level\n(sys.database_permissions)",
-            color="#107C10",
-            fontcolor="#107C10",
-        ) >> sql
+        (
+            mi_backend
+            >> Edge(
+                label="SELECT em tbl_tenants\nAPENAS (Decisão #17)",
+                color="#107C10",
+                fontcolor="#107C10",
+            )
+            >> sql
+        )
+        (
+            mi_tickets
+            >> Edge(
+                label="9 grants scoped\nobject-level\n(sys.database_permissions)",
+                color="#107C10",
+                fontcolor="#107C10",
+            )
+            >> sql
+        )
 
         # ===============================================================
         # Edges — AI consumption (apenas backend Python)

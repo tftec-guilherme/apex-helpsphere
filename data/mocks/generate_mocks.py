@@ -19,6 +19,7 @@ Determinismo: cores e textos são hardcoded — output reproduzível bit-a-bit.
 Tipo de fonte tenta Arial (Windows) / DejaVu Sans (Linux), com fallback
 para a fonte default da Pillow se nenhuma estiver disponível.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -192,8 +193,8 @@ def generate_nfce_receipt(output_path: Path) -> None:
     items = [
         ("001", "7890123", "Arroz Tipo 1 5kg", 1, 28.90),
         ("002", "7898765", "Feijao Carioca 1k", 2, 9.49),
-        ("003", "7894561", "Oleo Soja 900ml",  3, 7.80),
-        ("004", "7891234", "Cafe Trad 500g",   1, 18.50),
+        ("003", "7894561", "Oleo Soja 900ml", 3, 7.80),
+        ("004", "7891234", "Cafe Trad 500g", 1, 18.50),
         ("005", "7895678", "Leite UHT Int 1L", 4, 5.49),
     ]
     subtotal = 0.0
@@ -241,9 +242,7 @@ def generate_nfce_receipt(output_path: Path) -> None:
     draw.rectangle([(qr_x, y), (qr_x + qr_size, y + qr_size)], outline=fg, width=2)
     # diagonal pattern para sugerir QR
     for offset in range(0, qr_size, 8):
-        draw.line(
-            [(qr_x + offset, y), (qr_x + qr_size, y + qr_size - offset)], fill=fg, width=1
-        )
+        draw.line([(qr_x + offset, y), (qr_x + qr_size, y + qr_size - offset)], fill=fg, width=1)
     y += qr_size + 10
 
     draw.text((margin, y), "PROTOCOLO: 35260312345678910", font=small_font, fill=muted)
@@ -304,16 +303,16 @@ def generate_sap_screen(output_path: Path) -> None:
     y += 28
 
     header_fields = [
-        ("Empresa",            "APX1   Apex Group Brasil Holding"),
-        ("Numero documento",   "2026-FI-094812"),
-        ("Exercicio fiscal",   "2026"),
-        ("Tipo de documento",  "KR  Fatura de fornecedor"),
+        ("Empresa", "APX1   Apex Group Brasil Holding"),
+        ("Numero documento", "2026-FI-094812"),
+        ("Exercicio fiscal", "2026"),
+        ("Tipo de documento", "KR  Fatura de fornecedor"),
         ("Data de lancamento", "12.03.2026"),
         ("Data de referencia", "08.03.2026"),
-        ("Periodo contabil",   "03 / 2026"),
-        ("Documento referencia","NF-e 78421 / Serie 1"),
-        ("Moeda",              "BRL"),
-        ("Texto cabecalho",    "Pagamento DISTRIB.APEX  fatura mar/26"),
+        ("Periodo contabil", "03 / 2026"),
+        ("Documento referencia", "NF-e 78421 / Serie 1"),
+        ("Moeda", "BRL"),
+        ("Texto cabecalho", "Pagamento DISTRIB.APEX  fatura mar/26"),
     ]
     for label, value in header_fields:
         draw.text((panel_x + 14, y), label, font=label_font, fill=muted)
@@ -337,9 +336,9 @@ def generate_sap_screen(output_path: Path) -> None:
     draw.line([(panel_x + 14, y - 2), (width - 30, y - 2)], fill=(209, 213, 219), width=1)
 
     rows = [
-        ("001", "4112000001", "Despesa adm. - servicos",   "APX-LOJ-12", "12.450,00", "D"),
-        ("002", "1142000003", "PIS a recolher",             "APX-CORP",   "205,43",    "C"),
-        ("003", "2210000001", "Fornec. nac. (DISTRIB.APEX)","APX-CORP",   "12.244,57", "C"),
+        ("001", "4112000001", "Despesa adm. - servicos", "APX-LOJ-12", "12.450,00", "D"),
+        ("002", "1142000003", "PIS a recolher", "APX-CORP", "205,43", "C"),
+        ("003", "2210000001", "Fornec. nac. (DISTRIB.APEX)", "APX-CORP", "12.244,57", "C"),
     ]
     for row in rows:
         for x, val in zip(cols_x, row):
@@ -348,17 +347,32 @@ def generate_sap_screen(output_path: Path) -> None:
         draw.line([(panel_x + 14, y - 2), (width - 30, y - 2)], fill=(229, 231, 235), width=1)
 
     y += 12
-    draw.text((panel_x + 14, y), "Totais     Debito: R$ 12.450,00     Credito: R$ 12.450,00     Saldo: 0,00", font=label_bold, fill=text)
+    draw.text(
+        (panel_x + 14, y),
+        "Totais     Debito: R$ 12.450,00     Credito: R$ 12.450,00     Saldo: 0,00",
+        font=label_bold,
+        fill=text,
+    )
     y += 28
 
     # Approval status box
     draw.rectangle([(panel_x + 14, y), (width - 30, y + 60)], fill=(254, 243, 199), outline=(217, 119, 6), width=1)
     draw.text((panel_x + 24, y + 8), "Status de aprovacao", font=label_bold, fill=(146, 64, 14))
-    draw.text((panel_x + 24, y + 30), "Em aprovacao  ·  2 alcadas pendentes  ·  Workflow WF-FI-7782", font=label_font, fill=(146, 64, 14))
+    draw.text(
+        (panel_x + 24, y + 30),
+        "Em aprovacao  ·  2 alcadas pendentes  ·  Workflow WF-FI-7782",
+        font=label_font,
+        fill=(146, 64, 14),
+    )
 
     # Status bar bottom
     draw.rectangle([(0, height - 32), (width, height)], fill=(229, 231, 235))
-    draw.text((14, height - 24), "Sistema: PRD  Cliente: 100  Usuario: BRUNO.S  Programa: SAPMF05L  ", font=label_font, fill=muted)
+    draw.text(
+        (14, height - 24),
+        "Sistema: PRD  Cliente: 100  Usuario: BRUNO.S  Programa: SAPMF05L  ",
+        font=label_font,
+        fill=muted,
+    )
 
     image.save(output_path, "PNG", optimize=True)
 
@@ -367,9 +381,9 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     generators = [
-        ("pos-error-001.png",    generate_pos_error),
+        ("pos-error-001.png", generate_pos_error),
         ("nfce-receipt-001.png", generate_nfce_receipt),
-        ("sap-screen-001.png",   generate_sap_screen),
+        ("sap-screen-001.png", generate_sap_screen),
     ]
     for filename, generator in generators:
         out = OUTPUT_DIR / filename

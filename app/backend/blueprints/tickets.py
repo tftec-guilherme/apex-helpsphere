@@ -21,6 +21,7 @@ Successor URI:
 Multi-tenancy preservada nos endpoints PRESERVADOS:
     `_resolve_tenant_id` valida JWT claim `app_tenant_id` (HTTP 403 se ausente).
 """
+
 from __future__ import annotations
 
 import logging
@@ -87,8 +88,7 @@ def _deprecated_410(path_suffix: str = ""):
     body = {
         "error": "endpoint_deprecated",
         "message": (
-            "Este endpoint migrou para o tickets-service .NET "
-            "(Story 06.5c — Decisão #16 hybrid microservices)"
+            "Este endpoint migrou para o tickets-service .NET " "(Story 06.5c — Decisão #16 hybrid microservices)"
         ),
         "successor_uri": full_uri,
         "since": "2026-05-04",
@@ -99,9 +99,7 @@ def _deprecated_410(path_suffix: str = ""):
     if full_uri:
         headers["Link"] = f'<{full_uri}>; rel="successor-version"'
     else:
-        logger.warning(
-            "TICKETS_BACKEND_URI não setado — Link header omitido em 410 response"
-        )
+        logger.warning("TICKETS_BACKEND_URI não setado — Link header omitido em 410 response")
 
     return jsonify(body), 410, headers
 

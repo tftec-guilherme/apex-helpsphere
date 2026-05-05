@@ -760,9 +760,7 @@ async def setup_clients():
     AZURE_SQL_SERVER = os.getenv("AZURE_SQL_SERVER")
     AZURE_SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE", "helpsphere")
     if AZURE_SQL_SERVER:
-        current_app.logger.info(
-            "Setting up SQL pool | server=%s | db=%s", AZURE_SQL_SERVER, AZURE_SQL_DATABASE
-        )
+        current_app.logger.info("Setting up SQL pool | server=%s | db=%s", AZURE_SQL_SERVER, AZURE_SQL_DATABASE)
         sql_pool = await create_sql_pool(
             server=AZURE_SQL_SERVER,
             database=AZURE_SQL_DATABASE,
@@ -775,9 +773,7 @@ async def setup_clients():
             "HelpSphere repositories injetados | tenants (tickets/comments migrados para .NET — 06.5c.7)"
         )
     else:
-        current_app.logger.warning(
-            "AZURE_SQL_SERVER não configurado — /api/tenants/me ficará indisponível"
-        )
+        current_app.logger.warning("AZURE_SQL_SERVER não configurado — /api/tenants/me ficará indisponível")
 
 
 @bp.after_app_serving

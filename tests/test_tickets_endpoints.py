@@ -22,6 +22,7 @@ Cobertura:
 - 200 + payload em /tenants/me (preservado)
 - 403 em /tenants/me sem JWT claim app_tenant_id (anti-spoofing — preservado)
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -63,9 +64,7 @@ async def make_client():
         app.register_blueprint(tickets_bp)
 
         mock_auth = MagicMock()
-        mock_auth.get_auth_claims_if_enabled = AsyncMock(
-            return_value=claims if claims is not None else CLAIMS_VALID
-        )
+        mock_auth.get_auth_claims_if_enabled = AsyncMock(return_value=claims if claims is not None else CLAIMS_VALID)
         app.config[CONFIG_AUTH_CLIENT] = mock_auth
         app.config[CONFIG_TENANTS_REPO] = AsyncMock()
         return app
@@ -101,9 +100,9 @@ async def test_deprecated_endpoint_returns_410_with_link_header(
     assert response.status_code == 410, f"{method} {path} esperado 410, got {response.status_code}"
 
     expected_link = f'<{TICKETS_BASE_URI}{expected_link_path}>; rel="successor-version"'
-    assert response.headers.get("Link") == expected_link, (
-        f"{method} {path} Link header errado: {response.headers.get('Link')}"
-    )
+    assert (
+        response.headers.get("Link") == expected_link
+    ), f"{method} {path} Link header errado: {response.headers.get('Link')}"
 
     body = await response.get_json()
     assert body["error"] == "endpoint_deprecated"
@@ -114,9 +113,7 @@ async def test_deprecated_endpoint_returns_410_with_link_header(
 
 
 @pytest.mark.asyncio
-async def test_deprecated_endpoint_without_tickets_backend_uri_omits_link(
-    make_client, monkeypatch
-):
+async def test_deprecated_endpoint_without_tickets_backend_uri_omits_link(make_client, monkeypatch):
     """Edge case: env var TICKETS_BACKEND_URI ausente → Link omitido + successor_uri null."""
     monkeypatch.delenv("TICKETS_BACKEND_URI", raising=False)
 
@@ -134,9 +131,7 @@ async def test_deprecated_endpoint_without_tickets_backend_uri_omits_link(
 
 
 @pytest.mark.asyncio
-async def test_deprecated_endpoint_strips_trailing_slash_from_uri(
-    make_client, monkeypatch
-):
+async def test_deprecated_endpoint_strips_trailing_slash_from_uri(make_client, monkeypatch):
     """TICKETS_BACKEND_URI com trailing slash não duplica path no Link header."""
     monkeypatch.setenv("TICKETS_BACKEND_URI", f"{TICKETS_BASE_URI}/")
 
