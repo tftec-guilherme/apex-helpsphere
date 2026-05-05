@@ -4,7 +4,7 @@
 
 **Template pedagógico Azure production-grade — multi-tenant ITSM com IA modular.**
 
-Pós-Graduação em Arquitetura Cloud Azure · TFTEC + Anhanguera · Disciplina 06.
+Pós-Graduação em Arquitetura Cloud Azure · Disciplina 06.
 
 [![Deploy](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev.yml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev.yml)
 [![.NET](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml)
@@ -149,7 +149,6 @@ apex-helpsphere/
 
 <div align="center">
 
-**Prof. Guilherme Campos** · guilherme.campos@tftec.com.br
-TFTEC Treinamentos · Pós-Graduação em Arquitetura Cloud Azure
+**Prof. Guilherme Campos** · Pós-Graduação em Arquitetura Cloud Azure
 
 </div>
