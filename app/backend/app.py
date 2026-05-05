@@ -282,6 +282,9 @@ def auth_setup():
     setup = auth_helper.get_auth_setup_for_client()
     # Runtime config (env-driven) — evita URL embedded no bundle Vite.
     setup["ticketsApiBase"] = os.environ.get("TICKETS_BACKEND_URI", "")
+    # v2.1.0 (Sessão 9.5, Wave 3.F): feature flag chat — frontend usa pra esconder
+    # a aba "Chat" da nav quando false. Default false (aluno habilita no Lab Intermediário).
+    setup["enableChat"] = os.environ.get("ENABLE_CHAT", "false").lower() == "true"
     return jsonify(setup)
 
 

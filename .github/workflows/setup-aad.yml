@@ -1,0 +1,98 @@
+name: Setup AAD App Registrations
+
+# HelpSphere v2.1.0 (Sessão 9.5, Decisão #19) — workflow standalone para
+# (re)criar/atualizar as 2 App Registrations (helpsphere + helpsphere-client)
+# SEM precisar reprovisionar Azure (`azd up` completo).
+#
+# Casos de uso:
+#   - Aluno deletou as Apps no portal (acidente) — workflow_dispatch recria.
+#   - Backend FQDN mudou (re-provision em outra location/RG) — atualiza redirect URIs.
+#   - Re-aplicar admin consent após Global Admin promover o federated SP.
+#
+# REQUISITO: o federated Service Principal usado por este workflow
+# (`vars.AZURE_CLIENT_ID`) precisa de Microsoft Graph "Application.ReadWrite.All"
+# do tipo APPLICATION (não Delegated) com admin consent. Configurar uma vez:
+#
+#   APP_OBJECT_ID=$(az ad sp show --id <vars.AZURE_CLIENT_ID> --query id -o tsv)
+#   az ad app permission add --id <vars.AZURE_CLIENT_ID> \
+#     --api 00000003-0000-0000-c000-000000000000 \
+#     --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
+#   az ad app permission admin-consent --id <vars.AZURE_CLIENT_ID>
+#
+# Sem esse grant, `applications.post` retorna 403 — auth_init.py aborta.
+# (Verificar PARA-O-ALUNO.md "Surpresa #X: Application.ReadWrite.All".)
+
+on:
+  workflow_dispatch:
+    inputs:
+      env_name:
+        description: 'azd environment name (must match the env where backend is deployed)'
+        required: true
+        default: 'helpsphere-dev'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  setup-aad:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ inputs.env_name }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_USE_AUTHENTICATION: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Login via OIDC federated
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider github \
+            --tenant-id "$AZURE_TENANT_ID"
+
+      - name: Refresh or initialize azd env
+        run: |
+          if azd env list --output json | jq -e ".[] | select(.Name == \"$AZURE_ENV_NAME\")" > /dev/null; then
+            azd env select "$AZURE_ENV_NAME"
+            azd env refresh --no-prompt -e "$AZURE_ENV_NAME" || true
+          else
+            azd env new "$AZURE_ENV_NAME" \
+              --location "$AZURE_LOCATION" \
+              --subscription "$AZURE_SUBSCRIPTION_ID" \
+              --no-prompt
+          fi
+          azd env set AZURE_USE_AUTHENTICATION true
+          if [ -n "${{ vars.AZURE_AUTH_TENANT_ID }}" ]; then
+            azd env set AZURE_AUTH_TENANT_ID "${{ vars.AZURE_AUTH_TENANT_ID }}"
+          else
+            azd env set AZURE_AUTH_TENANT_ID "$AZURE_TENANT_ID"
+          fi
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          # auth_init/auth_update consomem msgraph + azure-identity + aiohttp + python-dotenv
+          # (todos já presentes em app/backend/requirements.txt).
+          pip install -r app/backend/requirements.txt
+
+      - name: Run auth_init (creates/updates Server + Client App Registrations)
+        run: python scripts/auth_init.py
+
+      - name: Run auth_update (sets redirect URIs + extension value)
+        run: python scripts/auth_update.py
+
+      - name: Echo result
+        run: |
+          azd env get-values | grep -E '^(AZURE_SERVER_APP_ID|AZURE_CLIENT_APP_ID|AZURE_APP_TENANT_ID_EXTENSION)=' || true

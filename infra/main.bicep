@@ -409,10 +409,14 @@ param pythonVersion string = '3.13'
 @description('CORS origins adicionais para tickets-service (alem do backend FQDN). Util para dev local.')
 param additionalCorsOrigins array = []
 
-// CONTRATO Wave 1.C / Wave 3.F: estes 2 params declarados aqui mas consumidos por hooks do azure.yaml
-// (skipPrepdocs) e bundler do frontend (enableChat). Linter avisa "no-unused-params" — aceitavel,
-// proximas waves usam via outputs/azd env. Não remover sem coordenar com Subagent C/F.
+// HelpSphere v2.1.0 (Sessão 9.5):
+// - `skipPrepdocs`: declarado para visibilidade no parameters.json mas consumido APENAS
+//   pelo wrapper `scripts/run_prepdocs.{ps1,sh}` que lê `azd env get-value SKIP_PREPDOCS`.
+//   Linter "no-unused-params" é aceitável — a documentação do param justifica a presença.
+// - `enableChat`: consumido em `appEnvVariables.ENABLE_CHAT` (linha ~620) → backend
+//   `/auth_setup` → frontend hide/show da nav (Wave 3.F).
 @description('Pula execucao do prepdocs.py no postdeploy (acelera azd up em ~3min mas chat/RAG nao funciona ate aluno rodar manual).')
+#disable-next-line no-unused-params
 param skipPrepdocs bool = false
 
 @description('Habilita chat na UI. Default false — chat e ativado no Lab Intermediario.')
@@ -618,6 +622,13 @@ var appEnvVariables = {
   RAG_SEND_IMAGE_SOURCES: ragSendImageSources
   USE_WEB_SOURCE: useWebSource
   USE_SHAREPOINT_SOURCE: useSharePointSource
+  // HelpSphere v2.1.0 (Sessão 9.5, Wave 3.F)
+  // ENABLE_CHAT: exposto pelo backend `/auth_setup` → frontend usa pra esconder
+  // a aba "Chat" da nav quando false. Default false (aluno habilita no Lab Intermediário).
+  // NOTA: `skipPrepdocs` NÃO é Container App env — é consumido apenas pelo wrapper
+  // `scripts/run_prepdocs.{ps1,sh}` que lê de `azd env get-value SKIP_PREPDOCS`
+  // durante o postprovision hook. Mapping no main.parameters.json basta.
+  ENABLE_CHAT: enableChat
 }
 
 // App Service for the web application (Python Quart app with JS frontend)
