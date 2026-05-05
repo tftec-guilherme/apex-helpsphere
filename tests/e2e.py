@@ -17,6 +17,14 @@ import app
 
 expect.set_options(timeout=10_000)
 
+# v2.1.0 (Decisao #23 + CHANGELOG): chat dormente por padrao (enableChat=false).
+# Estes tests E2E sao do template upstream `azure-search-openai-demo` e procuram
+# a UI do chat antigo (heading "Chat with your data"). HelpSphere v2.1.0 trocou
+# essa UI pelo dashboard executivo Apex + tickets list. O chat sera reativado no
+# Lab Intermediario quando enableChat=true ligar o pipeline RAG.
+# TD: refatorar estes tests para HelpSphere UI atual quando Lab Intermediario chegar.
+pytestmark = pytest.mark.skip(reason="chat dormente em v2.1.0 — reativado no Lab Intermediario")
+
 
 def wait_for_server_ready(url: str, timeout: float = 10.0, check_interval: float = 0.5) -> bool:
     """Make requests to provided url until it responds without error."""
