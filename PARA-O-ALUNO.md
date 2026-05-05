@@ -209,12 +209,11 @@ Sem isso, CI falha com `Insufficient privileges` ao tentar criar App Registratio
 
 ## 🆘 Suporte
 
-- **Dúvidas gerais:** fórum da disciplina no AVA Anhanguera
-- **Bugs no template:** abra issue no `tftec-guilherme/apex-helpsphere`
-- **Defesa arquitetural** (audiência sênior): leia `DECISION-LOG.md` — 16 decisões cravadas com contexto, alternativas avaliadas e anti-padrões rejeitados
+- **Dúvidas gerais:** fórum da disciplina no AVA
+- **Bugs no template:** abra issue no [`tftec-guilherme/apex-helpsphere`](https://github.com/tftec-guilherme/apex-helpsphere/issues)
+- **Defesa arquitetural** (audiência sênior): leia `DECISION-LOG.md` — 23 decisões cravadas com contexto, alternativas avaliadas e anti-padrões rejeitados
 
-**Prof. Guilherme Campos** — guilherme.campos@tftec.com.br
-TFTEC Treinamentos · Pós-Graduação em Arquitetura Cloud Azure
+**Prof. Guilherme Campos** · Pós-Graduação Avançada de Cloud com Azure
 
 ---
 
