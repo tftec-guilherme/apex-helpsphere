@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Drawpyo" modified="2026-05-05T00:59:41" agent="Python 3.14, Drawpyo 0.23" version="21.6.5" type="device">
+  <diagram name="Page-1" id="2084587184080">
+    <mxGraphModel dx="2037" dy="830" grid="1" gridSize="10" guides="1" toolTips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1123" pageHeight="794" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2084587185088" value="Edge · Internet" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#F0F6FF;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="40" y="40" width="160" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587186096" value="Apresentação" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#E6F2FB;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="230" y="40" width="160" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587186432" value="Container Apps Environment · westus3" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#EAF6EA;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="40" y="229" width="270" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587186768" value="Identity · least privilege REAL" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#FFF7DB;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="750" y="229" width="270" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587187104" value="Persistence" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#FDEAE7;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="40" y="503" width="270" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587187440" value="AI Platform · consumido por backend Python (RAG)" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#F5EBF8;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="340" y="229" width="380" height="244" as="geometry" />
+</mxCell>
+        <mxCell id="2084587187776" value="Observability &amp; DevOps" style="swimlane;whiteSpace=wrap;rounded=1;fillColor=#FFF1DB;strokeColor=#0078D4;glass=0;shadow=0;dashed=0;html=1;fillOpacity=50;strokeWidth=2;startSize=30;horizontal=1;fontSize=12;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+  <mxGeometry x="420" y="40" width="380" height="159" as="geometry" />
+</mxCell>
+        <mxCell id="2084587188112" value="[1] Atendentes Apex (5 marcas)" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/identity/Users.svg;" vertex="1" parent="2084587185088">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587188448" value="[2] SPA React + Vite" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/app_services/App_Services.svg;" vertex="1" parent="2084587186096">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587188784" value="[3] Backend Python (RAG)" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/other/Worker_Container_App.svg;" vertex="1" parent="2084587186432">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587189120" value="[4] Tickets-service .NET 10" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/other/Worker_Container_App.svg;" vertex="1" parent="2084587186432">
+  <mxGeometry x="135" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587189456" value="[5] UMI backend&#xa;(ManagedIdentity)" style="whiteSpace=wrap;rounded=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;glass=0;shadow=0;dashed=0;html=1;arcSize=8;strokeWidth=1;fontColor=#333333;fontSize=10;fontStyle=0;verticalAlign=middle;align=center;" vertex="1" parent="2084587186768">
+  <mxGeometry x="25" y="49" width="60" height="50" as="geometry" />
+</mxCell>
+        <mxCell id="2084587189792" value="[6] UMI tickets-service&#xa;(ManagedIdentity)" style="whiteSpace=wrap;rounded=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;glass=0;shadow=0;dashed=0;html=1;arcSize=8;strokeWidth=1;fontColor=#333333;fontSize=10;fontStyle=0;verticalAlign=middle;align=center;" vertex="1" parent="2084587186768">
+  <mxGeometry x="135" y="49" width="60" height="50" as="geometry" />
+</mxCell>
+        <mxCell id="2084587190128" value="[7] Azure SQL Serverless" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/databases/Azure_SQL.svg;" vertex="1" parent="2084587187104">
+  <mxGeometry x="135" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587190464" value="[8] Blob Storage" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/storage/Storage_Accounts.svg;" vertex="1" parent="2084587187104">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587190800" value="[9] Azure OpenAI" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" vertex="1" parent="2084587187440">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587191136" value="[10] AI Search" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/app_services/Search_Services.svg;" vertex="1" parent="2084587187440">
+  <mxGeometry x="135" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587191472" value="[11] Document Intelligence" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/ai_machine_learning/Form_Recognizers.svg;" vertex="1" parent="2084587187440">
+  <mxGeometry x="245" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084587191808" value="[12] AI Vision" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/ai_machine_learning/Computer_Vision.svg;" vertex="1" parent="2084587187440">
+  <mxGeometry x="25" y="134" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084588093520" value="[13] Application Insights" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/devops/Application_Insights.svg;" vertex="1" parent="2084587187776">
+  <mxGeometry x="245" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084588093856" value="[14] Azure Container Registry" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/containers/Container_Registries.svg;" vertex="1" parent="2084587187776">
+  <mxGeometry x="25" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084588094192" value="[15] GitHub Actions (azd CI/CD)" style="image;whiteSpace=wrap;rounded=0;dashed=0;html=1;points=[];align=center;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=#ffffff;image=img/lib/azure2/devops/Azure_DevOps.svg;" vertex="1" parent="2084587187776">
+  <mxGeometry x="135" y="49" width="40" height="40" as="geometry" />
+</mxCell>
+        <mxCell id="2084588094528" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188112" target="2084587188448" value="HTTPS · Entra ID JWT">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588095200" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;rounded=1;jettySize=auto;entryX=1;entryY=0.2;exitX=0;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188448" target="2084587188784" value="VITE_API_BACKEND_URL">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588095536" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;rounded=1;jettySize=auto;entryX=0.5;entryY=0;exitX=0.5;exitY=1;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188448" target="2084587189120" value="VITE_API_TICKETS_URL">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588095872" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.2;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587189120" value="410 Gone + Link rel=successor-version (RFC 8288)">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588096208" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.30000000000000004;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587189456" value="MI auth">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588096544" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.2;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587189120" target="2084587189792" value="MI auth">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588096880" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;rounded=1;jettySize=auto;entryX=1;entryY=0.2;exitX=0;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587189456" target="2084587190128" value="SELECT em tbl_tenants APENAS">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588097216" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;rounded=1;jettySize=auto;entryX=1;entryY=0.8;exitX=0;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587189792" target="2084587190128" value="9 grants object-level scoped">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588097552" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.4;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587190800" value="RAG (chat/ask)">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588097888" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587191136" value="index query">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588098224" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.6000000000000001;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587191472" value="OCR/layout">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588098560" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0;entryY=0.5;exitX=1;exitY=0.7000000000000002;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587191808" value="vision OCR">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588098896" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=8 8;rounded=1;jettySize=auto;entryX=0.5;entryY=0;exitX=0.5;exitY=1;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084587190464" value="docs upload">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588099232" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=0;entryY=0.2;exitX=1;exitY=0.8;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587188784" target="2084588093520" value="OpenTelemetry">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588099568" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=0;entryY=0.8;exitX=1;exitY=0.8;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084587189120" target="2084588093520" value="OpenTelemetry">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588099904" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=1;entryY=0.5;exitX=0;exitY=0.5;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084588094192" target="2084588093856" value="azd up · push images">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588100240" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=1;entryY=0.8;exitX=0;exitY=0.2;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084588093856" target="2084587188784" value="image pull">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588100576" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;dashed=1;dashPattern=1 2;rounded=1;jettySize=auto;entryX=1;entryY=0.5;exitX=0;exitY=0.8;endArrow=blockThin;endFill=0;strokeColor=#999999;strokeWidth=1;" edge="1" parent="1" source="2084588093856" target="2084587189120" value="image pull">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+        <mxCell id="2084588100912" value="📋 Architecture Legend" style="whiteSpace=wrap;rounded=1;fillColor=#0078D4;strokeColor=#005a9e;dashed=0;html=1;fontColor=#ffffff;fontStyle=1;fontSize=14;align=center;verticalAlign=middle;" vertex="1" parent="1">
+  <mxGeometry x="40" y="834" width="675" height="30" as="geometry" />
+</mxCell>
+        <mxCell id="2084588101248" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr style=&apos;font-weight:bold;&apos;&gt;&lt;td style=&apos;width:35px;padding:4px;&apos;&gt;#&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Name&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;&apos;&gt;Type&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Rationale&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#E6F3FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;overflow=hidden;html=1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="864" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588101920" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;1&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Atendentes Apex (5 marcas)&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Users&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;~3.500 operadores multi-tenant — entrada via Entra ID JWT&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="888" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588102256" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;2&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;SPA React + Vite&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;App Services&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;App Service B1 Always-On · Fluent UI v9 · TS&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="912" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588102592" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;3&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Backend Python (RAG)&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Worker Container App&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Quart + gunicorn 8w · /chat /ask /upload · /api/tickets/* → 410 Gone&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="936" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588102928" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;4&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Tickets-service .NET 10&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Worker Container App&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Minimal API + Dapper + Microsoft.Data.SqlClient · 5 endpoints REST · JWT auth&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="960" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588103264" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;5&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;UMI backend&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;ManagedIdentity&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;CONNECT + SELECT em tbl_tenants APENAS (least privilege real · Decisão #17)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="984" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588103600" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;6&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;UMI tickets-service&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;ManagedIdentity&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;9 grants object-level scoped (tbl_tickets, tbl_comments) — sys.database_permissions&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1008" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588103936" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;7&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Azure SQL Serverless&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Azure SQL&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;GP_S_Gen5_2 · autoPauseDelay = -1 (Decisão #18) · 5 tenants/50 tickets/70 comments&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1032" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588104272" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;8&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Blob Storage&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Storage Accounts&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;62 PDFs Apex KB + 3 mocks Vision OCR · MI auth&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1056" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588104608" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;9&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Azure OpenAI&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Azure OpenAI&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;gpt-4.1-mini + text-embedding-3-large&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1080" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588104944" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;10&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;AI Search&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Search Services&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Standard S0 · semantic ranker free tier (RAG index)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1104" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588105280" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;11&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Document Intelligence&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Form Recognizers&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Layout/OCR de documentos Apex (Lab Intermediário)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1128" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588105616" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;12&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;AI Vision&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Computer Vision&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;OCR + image embeddings (Lab Intermediário)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1152" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588105952" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;13&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Application Insights&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Application Insights&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;Workspace-based · OpenTelemetry middleware (Quart + ASP.NET Core)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1176" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588106288" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;14&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;Azure Container Registry&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Container Registries&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;2 imagens Docker (backend Python + tickets-service .NET)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#F0F8FF;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1200" width="675" height="24" as="geometry" />
+</mxCell>
+        <mxCell id="2084588106624" value="&lt;table style=&apos;width:100%;border-collapse:collapse;&apos;&gt;&lt;tr&gt;&lt;td style=&apos;width:35px;padding:4px;font-weight:bold;color:#0078D4;&apos;&gt;15&lt;/td&gt;&lt;td style=&apos;width:180px;padding:4px;&apos;&gt;GitHub Actions (azd CI/CD)&lt;/td&gt;&lt;td style=&apos;width:160px;padding:4px;color:#666;&apos;&gt;Azure DevOps&lt;/td&gt;&lt;td style=&apos;width:300px;padding:4px;&apos;&gt;OIDC federated credentials · azd up · 3 workflows (Deploy + Python check + .NET test)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;whiteSpace=wrap;rounded=0;fillColor=#ffffff;strokeColor=#0078D4;dashed=0;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;html=1;fontSize=11;" vertex="1" parent="1">
+  <mxGeometry x="40" y="1224" width="675" height="24" as="geometry" />
+</mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
