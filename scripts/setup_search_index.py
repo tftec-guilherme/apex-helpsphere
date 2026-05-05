@@ -98,8 +98,7 @@ async def ensure_index() -> int:
     search_service = os.environ.get("AZURE_SEARCH_SERVICE")
     if not search_service:
         logger.error(
-            "AZURE_SEARCH_SERVICE nao definido no azd env. "
-            "Rode `azd provision` antes (Bicep cria o Search Service)."
+            "AZURE_SEARCH_SERVICE nao definido no azd env. " "Rode `azd provision` antes (Bicep cria o Search Service)."
         )
         return 1
 
@@ -116,9 +115,7 @@ async def ensure_index() -> int:
         async with credential, SearchIndexClient(endpoint=endpoint, credential=credential) as client:
             try:
                 existing = await client.get_index(index_name)
-                logger.info(
-                    f"Index '{existing.name}' already exists ({len(existing.fields)} fields). Skipping."
-                )
+                logger.info(f"Index '{existing.name}' already exists ({len(existing.fields)} fields). Skipping.")
                 return 0
             except ResourceNotFoundError:
                 logger.info(f"Index '{index_name}' nao existe — criando schema minimo (5 fields)...")

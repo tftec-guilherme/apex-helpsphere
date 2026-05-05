@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #F3F2F1; padding: 16px; }
+  h2.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  .canvas {
+    background: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    padding: 0;
+    overflow: hidden;
+    max-width: 100%;
+  }
+
+  /* TITLE BAR */
+  .title-bar {
+    background: linear-gradient(135deg, #0078D4 0%, #106EBE 100%);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .title-bar .main { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .title-bar .sep { color: rgba(255,255,255,0.4); font-size: 18px; }
+  .title-bar .sub { font-size: 12px; color: rgba(255,255,255,0.75); }
+  .title-bar .badge {
+    margin-left: auto;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+  }
+
+  .diagram-area { padding: 20px; }
+
+  /* LAYERS */
+  .layer-row {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 14px;
+    align-items: stretch;
+  }
+  .layer-row.center { justify-content: center; }
+
+  .group {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+    flex: 1;
+    min-width: 0;
+  }
+  .group-header {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.2px;
+  }
+  .group-body {
+    background: rgba(255,255,255,0.95);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* COLOR THEMES */
+  .blue   .group-header { background: #0078D4; }
+  .blue2  .group-header { background: #0050EF; }
+  .green  .group-header { background: #107C10; }
+  .purple .group-header { background: #5C2D91; }
+  .orange .group-header { background: #CA5010; }
+  .gray   .group-header { background: #605E5C; }
+  .red    .group-header { background: #D13438; }
+
+  .blue   { border: 2px solid #0078D4; }
+  .blue2  { border: 2px solid #0050EF; }
+  .green  { border: 2px solid #107C10; }
+  .purple { border: 2px solid #5C2D91; }
+  .orange { border: 2px solid #CA5010; }
+  .gray   { border: 2px solid #605E5C; }
+  .red    { border: 2px solid #D13438; }
+
+  /* SERVICE CHIPS */
+  .service {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #F8F8F8;
+    border: 1px solid #E8E8E8;
+    min-width: 100px;
+    cursor: default;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .service:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .service .icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .service .num {
+    font-size: 10px;
+    font-weight: 700;
+    color: #888;
+    margin-bottom: -4px;
+  }
+  .service .name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #201F1E;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .service .sub-name {
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+  }
+
+  /* ARROWS DIVIDER */
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0;
+    padding: 0 20px;
+  }
+  .arrow-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 10px; color: #666;
+  }
+  .arrow-line { font-size: 18px; line-height: 1; }
+
+  /* LEGEND */
+  .legend {
+    background: #F7F9FC;
+    border: 1.5px solid #0078D4;
+    border-radius: 8px;
+    padding: 12px 18px;
+    margin-top: 4px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px 20px;
+  }
+  .legend-title { font-size: 12px; font-weight: 700; color: #0078D4; grid-column: 1 / -1; margin-bottom: 4px; }
+  .legend-item { font-size: 11px; color: #444; display: flex; align-items: center; gap: 6px; }
+  .leg-line { width: 28px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+  .leg-dashed { background: repeating-linear-gradient(90deg, var(--c) 0, var(--c) 6px, transparent 6px, transparent 10px); height: 2px; }
+  .leg-dotted { background: repeating-linear-gradient(90deg, var(--c) 0, var(--c) 3px, transparent 3px, transparent 6px); height: 2px; }
+
+  /* Icon colors per service type */
+  .ic-users   { background: #E8F4FF; }
+  .ic-spa     { background: #E0EEFF; }
+  .ic-compute { background: #E8F5E8; }
+  .ic-ai      { background: #F0E8FF; }
+  .ic-identity { background: #FFF2E8; }
+  .ic-obs     { background: #F5F5F5; }
+  .ic-data    { background: #FFEEEE; }
+</style>
+</head>
+<body>
+<h2 class="sr-only">HelpSphere Architecture — Diagrama de arquitetura do sistema Apex Group com camadas de Edge, Apresentação, Compute, AI, Identity, Observability e Persistence no Azure.</h2>
+
+<div class="canvas">
+  <!-- TITLE -->
+  <div class="title-bar">
+    <span class="main">HelpSphere</span>
+    <span class="sep">·</span>
+    <div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.9);font-weight:600;">Apex Group  ·  Solution Architecture  ·  v2.0</div>
+      <div class="sub">Disciplina 06  ·  Decisões #5 #16 #17 #18</div>
+    </div>
+    <div class="badge">Azure · westus3</div>
+  </div>
+
+  <div class="diagram-area">
+
+    <!-- EDGE -->
+    <div class="layer-row center">
+      <div class="group blue" style="max-width:320px;">
+        <div class="group-header">🌐 Edge · Internet</div>
+        <div class="group-body">
+          <div class="service">
+            <span class="num">[1]</span>
+            <div class="icon ic-users">👥</div>
+            <span class="name">Atendentes Apex</span>
+            <span class="sub-name">5 marcas</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- arrow -->
+    <div class="arrow-row">
+      <div class="arrow-item">
+        <div class="arrow-line" style="color:#0078D4;">↓</div>
+        <div style="color:#0078D4;font-weight:600;">HTTPS · Entra ID JWT</div>
+      </div>
+    </div>
+
+    <!-- APRESENTAÇÃO -->
+    <div class="layer-row center">
+      <div class="group blue2" style="max-width:320px;">
+        <div class="group-header">🖥️ Apresentação · Static Web App</div>
+        <div class="group-body">
+          <div class="service">
+            <span class="num">[2]</span>
+            <div class="icon ic-spa">⚡</div>
+            <span class="name">SPA React + Vite</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- arrows -->
+    <div class="arrow-row">
+      <div class="arrow-item">
+        <div class="arrow-line" style="color:#0078D4;">↙</div>
+        <div style="color:#0078D4;font-size:9px;font-weight:600;">VITE_API_BACKEND_URL</div>
+      </div>
+      <div style="width:120px;"></div>
+      <div class="arrow-item">
+        <div class="arrow-line" style="color:#0078D4;">↘</div>
+        <div style="color:#0078D4;font-size:9px;font-weight:600;">VITE_API_TICKETS_URL</div>
+      </div>
+    </div>
+
+    <!-- COMPUTE + AI -->
+    <div class="layer-row">
+      <div class="group green" style="flex:1.1;">
+        <div class="group-header">⚙️ Container Apps Environment · westus3</div>
+        <div class="group-body" style="justify-content:space-around;">
+          <div class="service">
+            <span class="num">[3]</span>
+            <div class="icon ic-compute">🐍</div>
+            <span class="name">Backend Python</span>
+            <span class="sub-name">(RAG)</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:#D13438;">
+            <div style="font-size:10px;font-weight:600;font-style:italic;">410 Gone</div>
+            <div style="font-size:16px;">⇢</div>
+            <div style="font-size:9px;color:#999;">RFC 8288</div>
+          </div>
+          <div class="service">
+            <span class="num">[4]</span>
+            <div class="icon ic-compute">🔷</div>
+            <span class="name">Tickets-service</span>
+            <span class="sub-name">.NET 10</span>
+          </div>
+        </div>
+      </div>
+      <div class="group purple" style="flex:2;">
+        <div class="group-header">🤖 AI Platform · consumido pelo Backend Python (RAG)</div>
+        <div class="group-body">
+          <div class="service">
+            <span class="num">[9]</span>
+            <div class="icon ic-ai">🧠</div>
+            <span class="name">Azure OpenAI</span>
+            <span class="sub-name">chat/ask</span>
+          </div>
+          <div class="service">
+            <span class="num">[10]</span>
+            <div class="icon ic-ai">🔍</div>
+            <span class="name">AI Search</span>
+            <span class="sub-name">index query</span>
+          </div>
+          <div class="service">
+            <span class="num">[11]</span>
+            <div class="icon ic-ai">📄</div>
+            <span class="name">Document Intel.</span>
+            <span class="sub-name">OCR / layout</span>
+          </div>
+          <div class="service">
+            <span class="num">[12]</span>
+            <div class="icon ic-ai">👁️</div>
+            <span class="name">AI Vision</span>
+            <span class="sub-name">vision OCR</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- arrows row 2 -->
+    <div style="display:flex;gap:14px;margin:2px 0;padding:0;">
+      <div style="flex:1.1;" class="arrow-row">
+        <div class="arrow-item"><div style="color:#CA5010;font-size:16px;">↓</div><div style="color:#CA5010;font-size:9px;font-weight:600;">MI auth</div></div>
+        <div style="width:60px;"></div>
+        <div class="arrow-item"><div style="color:#CA5010;font-size:16px;">↓</div><div style="color:#CA5010;font-size:9px;font-weight:600;">MI auth</div></div>
+      </div>
+      <div style="flex:2;"></div>
+    </div>
+
+    <!-- IDENTITY + OPS -->
+    <div class="layer-row">
+      <div class="group orange" style="flex:1.1;">
+        <div class="group-header">🔐 Identity · Least Privilege · Managed Identity</div>
+        <div class="group-body" style="justify-content:space-around;">
+          <div class="service">
+            <span class="num">[5]</span>
+            <div class="icon ic-identity">🛡️</div>
+            <span class="name">UMI Backend</span>
+          </div>
+          <div class="service">
+            <span class="num">[6]</span>
+            <div class="icon ic-identity">🛡️</div>
+            <span class="name">UMI Tickets</span>
+          </div>
+        </div>
+      </div>
+      <div class="group gray" style="flex:2;">
+        <div class="group-header">📊 Observability &amp; DevOps</div>
+        <div class="group-body">
+          <div class="service">
+            <span class="num">[13]</span>
+            <div class="icon ic-obs">📈</div>
+            <span class="name">Application Insights</span>
+            <span class="sub-name">OpenTelemetry</span>
+          </div>
+          <div class="service">
+            <span class="num">[14]</span>
+            <div class="icon ic-obs">📦</div>
+            <span class="name">Container Registry</span>
+            <span class="sub-name">image pull</span>
+          </div>
+          <div class="service">
+            <span class="num">[15]</span>
+            <div class="icon ic-obs">🔄</div>
+            <span class="name">GitHub Actions</span>
+            <span class="sub-name">azd CI/CD</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- arrows row 3 -->
+    <div style="display:flex;gap:14px;margin:2px 0;">
+      <div style="flex:1.1;" class="arrow-row">
+        <div class="arrow-item"><div style="color:#107C10;font-size:16px;">↓</div><div style="color:#107C10;font-size:9px;font-weight:600;">CONNECT tbl_tenants</div></div>
+        <div style="width:40px;"></div>
+        <div class="arrow-item"><div style="color:#107C10;font-size:16px;">↓</div><div style="color:#107C10;font-size:9px;font-weight:600;">9 grants obj-level</div></div>
+      </div>
+      <div style="flex:2;"></div>
+    </div>
+
+    <!-- PERSISTENCE -->
+    <div class="layer-row">
+      <div class="group red" style="flex:1.1;">
+        <div class="group-header">💾 Persistence · Data Layer</div>
+        <div class="group-body" style="justify-content:space-around;">
+          <div class="service">
+            <span class="num">[8]</span>
+            <div class="icon ic-data">☁️</div>
+            <span class="name">Blob Storage</span>
+            <span class="sub-name">docs upload</span>
+          </div>
+          <div class="service">
+            <span class="num">[7]</span>
+            <div class="icon ic-data">🗄️</div>
+            <span class="name">Azure SQL</span>
+            <span class="sub-name">Serverless</span>
+          </div>
+        </div>
+      </div>
+      <div style="flex:2;"></div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="legend">
+      <div class="legend-title">Legenda de Conexões</div>
+      <div class="legend-item"><div class="leg-line" style="background:#0078D4;"></div> Fluxo de requisição HTTPS</div>
+      <div class="legend-item"><div class="leg-line" style="background:#107C10;"></div> Grants SQL (dados)</div>
+      <div class="legend-item"><div class="leg-line leg-dashed" style="--c:#D13438;"></div> 410 Gone (RFC 8288)</div>
+      <div class="legend-item"><div class="leg-line leg-dashed" style="--c:#5C2D91;"></div> Consumo AI (RAG pipeline)</div>
+      <div class="legend-item"><div class="leg-line leg-dotted" style="--c:#CA5010;"></div> Autenticação Managed Identity</div>
+      <div class="legend-item"><div class="leg-line leg-dotted" style="--c:#605E5C;"></div> Observability / CI-CD / DevOps</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

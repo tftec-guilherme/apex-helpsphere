@@ -21,12 +21,20 @@ jobs:
   test_package:
     name: Test ${{ matrix.os }} Python ${{ matrix.python_version }} Node ${{ matrix.node_version }}
     runs-on: ${{ matrix.os }}
+    # Matriz simplificada (v2.1.0): template pedagógico não precisa testar
+    # 2 OS × 5 Python versions × 2 Node versions = 20 jobs do template upstream.
+    # Aluno usa Python 3.13 (.python-version) + Node 22, ambiente Linux do CI.
+    # Para reabilitar matriz completa, descomentar abaixo.
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
-        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        node_version: ["20.14", "22"]
+        os: ["ubuntu-latest"]
+        python_version: ["3.13"]
+        node_version: ["22"]
+        # Backup completo (template upstream):
+        # os: ["ubuntu-latest", "windows-latest"]
+        # python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        # node_version: ["20.14", "22"]
     steps:
         - uses: actions/checkout@v6
           with:

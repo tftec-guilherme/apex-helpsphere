@@ -54,9 +54,7 @@ def _build_redirect_uris(backend_uri: str) -> tuple[list[str], list[str]]:
     return spa, web
 
 
-async def update_client_redirect_uris(
-    graph_client: GraphServiceClient, client_app_id: str, backend_uri: str
-) -> None:
+async def update_client_redirect_uris(graph_client: GraphServiceClient, client_app_id: str, backend_uri: str) -> None:
     client_object_id = await get_application(graph_client, client_app_id)
     if not client_object_id:
         print(f"[auth_update] Client app {client_app_id} not found — skip redirect URI update.")
@@ -126,14 +124,10 @@ async def main() -> None:  # pragma: no cover
 
     auth_tenant = (os.getenv("AZURE_AUTH_TENANT_ID") or os.getenv("AZURE_TENANT_ID") or "").strip()
     if not auth_tenant:
-        raise SystemExit(
-            "Error: No tenant ID set. Set AZURE_AUTH_TENANT_ID or AZURE_TENANT_ID in your azd env."
-        )
+        raise SystemExit("Error: No tenant ID set. Set AZURE_AUTH_TENANT_ID or AZURE_TENANT_ID in your azd env.")
 
     credential = AzureDeveloperCliCredential(tenant_id=auth_tenant)
-    graph_client = GraphServiceClient(
-        credentials=credential, scopes=["https://graph.microsoft.com/.default"]
-    )
+    graph_client = GraphServiceClient(credentials=credential, scopes=["https://graph.microsoft.com/.default"])
 
     # 1) redirect URIs
     backend_uri = (os.getenv("BACKEND_URI") or "").strip()

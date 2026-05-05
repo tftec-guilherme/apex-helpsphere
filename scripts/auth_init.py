@@ -75,11 +75,11 @@ CLIENT_APP_DISPLAY_NAME = "helpsphere-client"
 GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"
 GRAPH_SCOPES = {
     # name                              # scope id (Microsoft Graph delegated)
-    "User.Read":       "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
-    "openid":          "37f7f235-527c-4136-accd-4a02d197296e",
-    "profile":         "14dad69e-099b-42c9-810b-d002981feec1",
-    "email":           "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0",
-    "offline_access":  "7427e0e9-2fba-42fe-b0c0-848c9e6a8182",
+    "User.Read": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
+    "openid": "37f7f235-527c-4136-accd-4a02d197296e",
+    "profile": "14dad69e-099b-42c9-810b-d002981feec1",
+    "email": "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0",
+    "offline_access": "7427e0e9-2fba-42fe-b0c0-848c9e6a8182",
 }
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
@@ -112,16 +112,14 @@ async def find_app_by_app_id(graph_client: GraphServiceClient, app_id: str) -> O
         return None
 
 
-async def find_app_by_display_name(
-    graph_client: GraphServiceClient, display_name: str
-) -> Optional[Application]:
+async def find_app_by_display_name(graph_client: GraphServiceClient, display_name: str) -> Optional[Application]:
     """Fetch the FIRST application matching the display name (idempotency lookup)."""
     query_params = ApplicationsRequestBuilder.ApplicationsRequestBuilderGetQueryParameters(
         filter=f"displayName eq '{display_name}'"
     )
-    request_config = RequestConfiguration[
-        ApplicationsRequestBuilder.ApplicationsRequestBuilderGetQueryParameters
-    ](query_parameters=query_params)
+    request_config = RequestConfiguration[ApplicationsRequestBuilder.ApplicationsRequestBuilderGetQueryParameters](
+        query_parameters=query_params
+    )
     try:
         result = await graph_client.applications.get(request_configuration=request_config)
         if result and result.value:
@@ -533,15 +531,11 @@ async def main() -> None:  # pragma: no cover
 
     auth_tenant = (os.getenv("AZURE_AUTH_TENANT_ID") or os.getenv("AZURE_TENANT_ID") or "").strip()
     if not auth_tenant:
-        raise SystemExit(
-            "Error: No tenant ID set. Set AZURE_AUTH_TENANT_ID or AZURE_TENANT_ID in your azd env."
-        )
+        raise SystemExit("Error: No tenant ID set. Set AZURE_AUTH_TENANT_ID or AZURE_TENANT_ID in your azd env.")
 
     print(f"[auth_init] Setting up authentication for tenant {auth_tenant}")
     credential = AzureDeveloperCliCredential(tenant_id=auth_tenant)
-    graph_client = GraphServiceClient(
-        credentials=credential, scopes=["https://graph.microsoft.com/.default"]
-    )
+    graph_client = GraphServiceClient(credentials=credential, scopes=["https://graph.microsoft.com/.default"])
 
     backend_uri = (os.getenv("BACKEND_URI") or "").strip()
 
@@ -560,9 +554,7 @@ async def main() -> None:  # pragma: no cover
     # Directory Extension + Optional Claim (REST-level operations)
     token = await _get_graph_token(credential)
     async with aiohttp.ClientSession() as session:
-        extension_full_name = await ensure_directory_extension(
-            session, token, server_object_id, server_app_id
-        )
+        extension_full_name = await ensure_directory_extension(session, token, server_object_id, server_app_id)
         await ensure_optional_claim(session, token, server_object_id, extension_full_name)
 
     update_azd_env("AZURE_APP_TENANT_ID_EXTENSION", extension_full_name)

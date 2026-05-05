@@ -71,7 +71,10 @@ def _resolve_tenant_id(auth_claims: dict[str, Any]) -> str:
             auth_claims.get("sub"),
             auth_claims.get("name"),
         )
-        abort(403, description="JWT claim 'app_tenant_id' ausente — configurar Directory Extension + Optional Claim no Entra App Registration")
+        abort(
+            403,
+            description="JWT claim 'app_tenant_id' ausente — configurar Directory Extension + Optional Claim no Entra App Registration",
+        )
     return str(tenant_id)
 
 
