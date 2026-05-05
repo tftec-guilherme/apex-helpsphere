@@ -16,6 +16,12 @@ Geração:
 Versionar PNG no repo (referenciado pelo README) E o .py (regenerável).
 SVG é bonus para visualização zoomada offline.
 
+Layout decisão (Sessão 9.2 cont · iteração 3):
+- Top-bottom (TB) com 4 zonas horizontais: Edge → Compute → Data → AI/Ops
+- Identity como cluster lateral compacto (UMIs + grants verificáveis)
+- Edges curtos com labels concisos (sem CSS-art em ASCII)
+- Splines curvas (não ortho) para fluidez visual
+
 Decisões refletidas (vide DECISION-LOG.md):
 - #5  Container Apps + JWT tenant + auth obrigatório
 - #16 Hybrid Microservices Python (RAG) + .NET (Tickets CRUD)
@@ -33,28 +39,59 @@ from diagrams.azure.ml import CognitiveServices
 from diagrams.azure.storage import BlobStorage
 from diagrams.azure.web import AppServices, Search
 
+# ---------------------------------------------------------------------------
+# Theme tokens — alinhados com paleta Azure oficial
+# ---------------------------------------------------------------------------
+AZURE_BLUE = "#0078D4"
+AZURE_GREEN = "#107C10"
+AZURE_RED = "#D83B01"
+AZURE_PURPLE = "#5C2D91"
+AZURE_AMBER = "#F2B600"
+AZURE_GRAY = "#605E5C"
+INK = "#252423"
+
 GRAPH_ATTR = {
-    "fontname": "Segoe UI",
-    "fontsize": "22",
+    "fontname": "Segoe UI Semibold",
+    "fontsize": "26",
+    "fontcolor": INK,
     "bgcolor": "white",
-    "pad": "0.8",
+    "pad": "1.0",
     "splines": "spline",
-    "rankdir": "LR",
+    "rankdir": "TB",
     "compound": "true",
-    "nodesep": "0.6",
-    "ranksep": "1.4",
+    "nodesep": "0.7",
+    "ranksep": "1.0",
     "labelloc": "t",
+    "labeljust": "c",
 }
 
 NODE_ATTR = {
     "fontname": "Segoe UI",
     "fontsize": "13",
+    "fontcolor": INK,
 }
 
 EDGE_ATTR = {
     "fontname": "Segoe UI",
     "fontsize": "11",
+    "fontcolor": AZURE_GRAY,
 }
+
+
+def _cluster_attr(bgcolor: str, border: str) -> dict:
+    """Atributos consistentes para todos os clusters."""
+    return {
+        "style": "rounded",
+        "bgcolor": bgcolor,
+        "color": border,
+        "pencolor": border,
+        "penwidth": "2",
+        "fontname": "Segoe UI Semibold",
+        "fontsize": "15",
+        "fontcolor": INK,
+        "labelloc": "t",
+        "margin": "20",
+    }
 
 
 def render(outformat: str = "png") -> None:
@@ -64,178 +101,117 @@ def render(outformat: str = "png") -> None:
         filename="docs/architecture",
         outformat=outformat,
         show=False,
-        direction="LR",
+        direction="TB",
         graph_attr=GRAPH_ATTR,
         node_attr=NODE_ATTR,
         edge_attr=EDGE_ATTR,
     ):
         # ===============================================================
-        # Edge — Internet entry
+        # ZONA 1 — EDGE (entrada de usuários)
         # ===============================================================
-        users = Usericon("Atendentes Apex\n5 marcas multi-tenant")
+        with Cluster("Edge · Internet", graph_attr=_cluster_attr("#F0F6FF", AZURE_BLUE)):
+            users = Usericon("Atendentes Apex\n5 marcas multi-tenant\n~3.500 operadores")
 
         # ===============================================================
-        # Frontend layer
+        # ZONA 2 — APRESENTAÇÃO
         # ===============================================================
-        spa = AppServices("SPA React + Vite\nApp Service B1\n(Always-On)")
+        with Cluster("Apresentação", graph_attr=_cluster_attr("#E6F2FB", AZURE_BLUE)):
+            spa = AppServices("SPA React + Vite + TS\nFluent UI v9\nApp Service B1 (Always-On)")
 
         # ===============================================================
-        # Compute — 2 microservices em ACA env compartilhado
+        # ZONA 3 — COMPUTE (2 microservices) + IDENTITY (lateral)
         # ===============================================================
         with Cluster(
             "Container Apps Environment · westus3",
-            graph_attr={
-                "style": "rounded",
-                "bgcolor": "#EDF7ED",
-                "color": "#107C10",
-                "fontsize": "16",
-                "labelloc": "t",
-            },
+            graph_attr=_cluster_attr("#EAF6EA", AZURE_GREEN),
         ):
-            backend = ContainerApps("Backend Python\nQuart + gunicorn\n/chat /ask /upload\n/api/tickets/* → 410 Gone")
-            tickets = ContainerApps("Tickets-service .NET 10\nMinimal API + Dapper\n5 endpoints REST + JWT auth")
+            backend = ContainerApps(
+                "Backend Python\nQuart · gunicorn 8w\n/chat /ask /upload\n/api/tickets/* → 410 Gone"
+            )
+            tickets = ContainerApps(
+                "Tickets-service .NET 10\nMinimal API · Dapper\n5 endpoints REST\nJWT auth obrigatório"
+            )
+
+        with Cluster(
+            "Identity · least privilege REAL",
+            graph_attr=_cluster_attr("#FFF7DB", AZURE_AMBER),
+        ):
+            mi_backend = ManagedIdentities("UMI backend\nSELECT em tbl_tenants\nAPENAS")
+            mi_tickets = ManagedIdentities("UMI tickets-service\n9 grants object-level\nscoped")
 
         # ===============================================================
-        # Identity perimeter (Zero Trust)
+        # ZONA 4 — DATA + AI PLATFORM (lado a lado)
         # ===============================================================
-        with Cluster(
-            "Identity & Governance · least privilege REAL",
-            graph_attr={
-                "style": "rounded",
-                "bgcolor": "#FFF8E1",
-                "color": "#F2B600",
-                "fontsize": "16",
-                "labelloc": "t",
-            },
-        ):
-            mi_backend = ManagedIdentities("User-Assigned MI\nbackend (Python)")
-            mi_tickets = ManagedIdentities("User-Assigned MI\ntickets-service (.NET)")
-
-        # ===============================================================
-        # Persistence
-        # ===============================================================
-        with Cluster(
-            "Persistence",
-            graph_attr={
-                "style": "rounded",
-                "bgcolor": "#FFEBEE",
-                "color": "#D83B01",
-                "fontsize": "16",
-                "labelloc": "t",
-            },
-        ):
+        with Cluster("Persistence", graph_attr=_cluster_attr("#FDEAE7", AZURE_RED)):
             sql = SQLDatabases(
-                "Azure SQL DB Serverless\nGP_S_Gen5_2\nautoPauseDelay = -1\n5 tenants · 50 tickets · 70 comments"
+                "Azure SQL Serverless\nGP_S_Gen5_2 · autoPause OFF\n5 tenants · 50 tickets · 70 comments"
             )
             blob = BlobStorage("Blob Storage\n62 PDFs Apex KB\n+ mocks Vision OCR")
 
-        # ===============================================================
-        # AI Platform (consumido pelo backend Python)
-        # ===============================================================
-        with Cluster(
-            "AI Platform",
-            graph_attr={
-                "style": "rounded",
-                "bgcolor": "#F3E5F5",
-                "color": "#5C2D91",
-                "fontsize": "16",
-                "labelloc": "t",
-            },
-        ):
+        with Cluster("AI Platform · consumido por backend Python", graph_attr=_cluster_attr("#F5EBF8", AZURE_PURPLE)):
             openai = CognitiveServices("Azure OpenAI\ngpt-4.1-mini\n+ emb-3-large")
             search = Search("AI Search\nsemantic ranker")
-            vision = CognitiveServices("Doc Intelligence\n+ AI Vision\n(OCR · layout)")
+            vision = CognitiveServices("Doc Intelligence\n+ AI Vision (OCR)")
 
         # ===============================================================
-        # Observability + DevOps
+        # ZONA 5 — OBSERVABILITY + DEVOPS (rodapé)
         # ===============================================================
-        with Cluster(
-            "Observability & DevOps",
-            graph_attr={
-                "style": "rounded",
-                "bgcolor": "#FFF3E0",
-                "color": "#FF8C00",
-                "fontsize": "16",
-                "labelloc": "t",
-            },
-        ):
-            ai = CognitiveServices("Application Insights\nworkspace-based")
-            acr = ContainerRegistries("ACR\n2 imagens Docker")
+        with Cluster("Observability & DevOps", graph_attr=_cluster_attr("#FFF1DB", "#FF8C00")):
+            ai_insights = CognitiveServices("Application Insights\nworkspace-based\nOpenTelemetry")
+            acr = ContainerRegistries("Azure Container\nRegistry · 2 imagens")
             ci = Devops("GitHub Actions\nazd CI/CD · OIDC")
 
         # ===============================================================
-        # Edges — request flow
+        # FLUXOS — request path (azul, sólido)
         # ===============================================================
-        users >> Edge(label="HTTPS · Entra ID JWT", color="#0078D4", style="bold") >> spa
-        (
-            spa
-            >> Edge(
-                label="/chat /ask /upload\nVITE_API_BACKEND_URL",
-                color="#0078D4",
-            )
-            >> backend
-        )
-        (
-            spa
-            >> Edge(
-                label="/api/tickets/*\nVITE_API_TICKETS_URL",
-                color="#0078D4",
-            )
-            >> tickets
-        )
+        users >> Edge(label="HTTPS · Entra ID JWT", color=AZURE_BLUE, penwidth="2") >> spa
+        spa >> Edge(label="VITE_API_BACKEND_URL", color=AZURE_BLUE) >> backend
+        spa >> Edge(label="VITE_API_TICKETS_URL", color=AZURE_BLUE) >> tickets
 
-        # Deprecation flow (Decisão #16) — Python redireciona pro .NET via Link header
-        (
-            backend
-            >> Edge(
-                label="410 Gone + Link\nrel=successor-version (RFC 8288)",
-                color="#D83B01",
-                style="dashed",
-            )
-            >> tickets
-        )
+        # Deprecação (Decisão #16) — vermelho tracejado, RFC 8288
+        backend >> Edge(
+            label="410 Gone + Link\nrel=successor-version",
+            color=AZURE_RED,
+            style="dashed",
+            fontcolor=AZURE_RED,
+        ) >> tickets
 
         # ===============================================================
-        # Edges — MI auth (least privilege real verificável)
+        # FLUXOS — MI auth (verde, com grants verificáveis nos labels)
         # ===============================================================
-        backend >> Edge(label="MI", color="#605E5C", style="dotted") >> mi_backend
-        tickets >> Edge(label="MI", color="#605E5C", style="dotted") >> mi_tickets
+        backend >> Edge(label="MI", color=AZURE_GRAY, style="dotted") >> mi_backend
+        tickets >> Edge(label="MI", color=AZURE_GRAY, style="dotted") >> mi_tickets
 
-        (
-            mi_backend
-            >> Edge(
-                label="SELECT em tbl_tenants\nAPENAS (Decisão #17)",
-                color="#107C10",
-                fontcolor="#107C10",
-            )
-            >> sql
-        )
-        (
-            mi_tickets
-            >> Edge(
-                label="9 grants scoped\nobject-level\n(sys.database_permissions)",
-                color="#107C10",
-                fontcolor="#107C10",
-            )
-            >> sql
-        )
+        mi_backend >> Edge(
+            label="SELECT tbl_tenants\n(token via SQL_COPT_SS_ACCESS_TOKEN)",
+            color=AZURE_GREEN,
+            fontcolor=AZURE_GREEN,
+            penwidth="2",
+        ) >> sql
+
+        mi_tickets >> Edge(
+            label="SELECT/INSERT/UPDATE/DELETE\ntbl_tickets + tbl_comments",
+            color=AZURE_GREEN,
+            fontcolor=AZURE_GREEN,
+            penwidth="2",
+        ) >> sql
 
         # ===============================================================
-        # Edges — AI consumption (apenas backend Python)
+        # FLUXOS — AI consumption (roxo tracejado, apenas backend)
         # ===============================================================
-        backend >> Edge(label="RAG", color="#5C2D91", style="dashed") >> openai
-        backend >> Edge(label="index", color="#5C2D91", style="dashed") >> search
-        backend >> Edge(label="OCR", color="#5C2D91", style="dashed") >> vision
-        backend >> Edge(label="docs", color="#5C2D91", style="dashed") >> blob
+        backend >> Edge(label="RAG", color=AZURE_PURPLE, style="dashed") >> openai
+        backend >> Edge(label="index", color=AZURE_PURPLE, style="dashed") >> search
+        backend >> Edge(label="OCR", color=AZURE_PURPLE, style="dashed") >> vision
+        backend >> Edge(label="docs", color=AZURE_PURPLE, style="dashed") >> blob
 
         # ===============================================================
-        # Edges — Observability + DevOps
+        # FLUXOS — Observability + DevOps (cinza pontilhado, baixa hierarquia)
         # ===============================================================
-        backend >> Edge(label="OpenTelemetry", color="#605E5C", style="dotted") >> ai
-        tickets >> Edge(label="OpenTelemetry", color="#605E5C", style="dotted") >> ai
-        ci >> Edge(label="azd up", color="#605E5C", style="dotted") >> acr
-        acr >> Edge(label="image pull", color="#605E5C", style="dotted") >> backend
-        acr >> Edge(label="image pull", color="#605E5C", style="dotted") >> tickets
+        backend >> Edge(label="OTel", color=AZURE_GRAY, style="dotted") >> ai_insights
+        tickets >> Edge(label="OTel", color=AZURE_GRAY, style="dotted") >> ai_insights
+        ci >> Edge(label="azd up", color=AZURE_GRAY, style="dotted") >> acr
+        acr >> Edge(label="image pull", color=AZURE_GRAY, style="dotted") >> backend
+        acr >> Edge(label="image pull", color=AZURE_GRAY, style="dotted") >> tickets
 
 
 if __name__ == "__main__":
