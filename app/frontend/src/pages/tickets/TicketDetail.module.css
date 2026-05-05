@@ -22,7 +22,9 @@
     padding: var(--space-1) var(--space-2);
     margin-left: calc(var(--space-2) * -1);
     border-radius: var(--radius-sm);
-    transition: color var(--t-fast), background var(--t-fast);
+    transition:
+        color var(--t-fast),
+        background var(--t-fast);
 }
 
 .backLink:hover {
@@ -178,7 +180,10 @@
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
     cursor: pointer;
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+    transition:
+        background var(--t-fast),
+        border-color var(--t-fast),
+        color var(--t-fast);
 }
 
 .statusBtn:hover:not(:disabled) {

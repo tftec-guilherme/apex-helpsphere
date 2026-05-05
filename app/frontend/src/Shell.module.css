@@ -79,7 +79,10 @@
     padding: var(--space-3) var(--space-3);
     border-radius: var(--radius);
     text-decoration: none;
-    transition: background var(--t-fast), color var(--t-fast), padding-left var(--t-fast);
+    transition:
+        background var(--t-fast),
+        color var(--t-fast),
+        padding-left var(--t-fast);
     border-left: 2px solid transparent;
     margin-left: -2px;
 }

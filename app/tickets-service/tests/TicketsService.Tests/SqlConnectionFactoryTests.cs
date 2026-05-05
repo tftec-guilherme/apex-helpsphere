@@ -1,7 +1,7 @@
 // HelpSphere tickets-service — SqlConnectionFactoryTests (Story 06.5c.1, T7.2)
-// AC-3: BuildConnectionString deve produzir Authentication=ActiveDirectoryManagedIdentity em prod
-// AC-3: BuildConnectionString deve produzir Authentication=ActiveDirectoryDefault em dev
-// AC-3: Fail-fast quando env vars críticas ausentes
+// v2.1.0 (Decisao #22): connection string NAO contem mais "Authentication=...".
+// Token AAD e injetado em runtime via SqlConnection.AccessToken (paridade Decisao #17 Python).
+// Tests focam em authMode resolution (MI vs Default) + fail-fast em env vars ausentes.
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -34,8 +34,11 @@ public sealed class SqlConnectionFactoryTests
         Assert.Equal("MI", authMode);
         Assert.Equal("sql-test.database.windows.net", server);
         Assert.Equal("helpsphere", db);
-        Assert.Contains("Authentication=ActiveDirectoryManagedIdentity", connStr, StringComparison.Ordinal);
-        Assert.Contains("User Id=test-client-id-mi", connStr, StringComparison.Ordinal);
+        // Decisao #22: token explicit via SqlConnection.AccessToken — connection string
+        // NAO inclui mais clausula Authentication=. Validamos apenas params seguros.
+        Assert.DoesNotContain("Authentication=", connStr, StringComparison.Ordinal);
+        Assert.Contains("Server=tcp:sql-test.database.windows.net,1433", connStr, StringComparison.Ordinal);
+        Assert.Contains("Database=helpsphere", connStr, StringComparison.Ordinal);
         Assert.Contains("Encrypt=yes", connStr, StringComparison.Ordinal);
         Assert.Contains("Connection Timeout=30", connStr, StringComparison.Ordinal);
     }
@@ -53,8 +56,8 @@ public sealed class SqlConnectionFactoryTests
             SqlConnectionFactory.BuildConnectionString(config, FakeEnv("Development"));
 
         Assert.Equal("Default", authMode);
-        Assert.Contains("Authentication=ActiveDirectoryDefault", connStr, StringComparison.Ordinal);
-        Assert.DoesNotContain("ActiveDirectoryManagedIdentity", connStr, StringComparison.Ordinal);
+        // Decisao #22: connection string sem Authentication= (token explicit AccessToken).
+        Assert.DoesNotContain("Authentication=", connStr, StringComparison.Ordinal);
     }
 
     [Fact]

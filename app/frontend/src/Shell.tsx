@@ -100,9 +100,7 @@ const ShellLayout = () => {
                         <h1>{meta.title}</h1>
                         <span className={styles.topbarSubtitle}>{meta.subtitle}</span>
                     </div>
-                    <div className={styles.topbarActions}>
-                        {useLogin && <LoginButton />}
-                    </div>
+                    <div className={styles.topbarActions}>{useLogin && <LoginButton />}</div>
                 </header>
                 <main className={styles.content} id="main-content">
                     <Outlet />

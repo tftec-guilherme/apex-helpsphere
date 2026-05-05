@@ -29,7 +29,10 @@
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
     cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+    transition:
+        background var(--t-fast),
+        color var(--t-fast),
+        border-color var(--t-fast);
 }
 
 .pill:hover {
@@ -75,7 +78,9 @@
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6478' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
     background-repeat: no-repeat;
     background-position: right 10px center;
-    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    transition:
+        border-color var(--t-fast),
+        box-shadow var(--t-fast);
 }
 
 .select:hover {
@@ -99,7 +104,9 @@
     font-family: var(--font-body);
     font-size: var(--fs-sm);
     color: var(--color-text);
-    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    transition:
+        border-color var(--t-fast),
+        box-shadow var(--t-fast);
 }
 
 .search::placeholder {

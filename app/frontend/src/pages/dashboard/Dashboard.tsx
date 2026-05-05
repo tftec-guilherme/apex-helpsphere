@@ -56,16 +56,8 @@ const Dashboard = () => {
         <div className={styles.page}>
             <section className={styles.kpis} aria-label="Indicadores principais">
                 <KpiCard label="Tickets abertos" value={totalOpen} />
-                <KpiCard
-                    label="SLA breach"
-                    value={`${slaBreachPct.toFixed(1)}%`}
-                    accent={slaBreachPct > 10 ? "danger" : "default"}
-                />
-                <KpiCard
-                    label="Críticos"
-                    value={criticalOpen}
-                    accent={criticalOpen > 0 ? "warn" : "default"}
-                />
+                <KpiCard label="SLA breach" value={`${slaBreachPct.toFixed(1)}%`} accent={slaBreachPct > 10 ? "danger" : "default"} />
+                <KpiCard label="Críticos" value={criticalOpen} accent={criticalOpen > 0 ? "warn" : "default"} />
                 <KpiCard label="Últimas 24h" value={last24h} />
             </section>
 

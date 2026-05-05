@@ -71,9 +71,7 @@ export const LoginGate = ({ isLoggedIn, children }: Props) => {
                     <p className={styles.lede}>
                         Plataforma operacional de tickets do <strong>Apex Group</strong>
                     </p>
-                    <p className={styles.body}>
-                        Acesso restrito a colaboradores. Use sua conta corporativa para entrar.
-                    </p>
+                    <p className={styles.body}>Acesso restrito a colaboradores. Use sua conta corporativa para entrar.</p>
                     <button type="button" className={styles.cta} onClick={handleLogin}>
                         <svg width="18" height="18" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <rect x="1" y="1" width="10" height="10" fill="#f25022" />
@@ -84,8 +82,8 @@ export const LoginGate = ({ isLoggedIn, children }: Props) => {
                         Entrar com Microsoft
                     </button>
                     <p className={styles.footnote}>
-                        Sua sessão é mantida via Microsoft Entra ID. Bloqueio de popup pode interromper o login —
-                        confira que pop-ups estão liberados para <code>localhost:50505</code>.
+                        Sua sessão é mantida via Microsoft Entra ID. Bloqueio de popup pode interromper o login — confira que pop-ups estão liberados para{" "}
+                        <code>localhost:50505</code>.
                     </p>
                 </div>
             </main>

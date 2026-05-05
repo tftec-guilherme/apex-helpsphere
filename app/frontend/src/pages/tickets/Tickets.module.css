@@ -86,7 +86,10 @@
     cursor: pointer;
     font-size: var(--fs-lg);
     line-height: 1;
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+    transition:
+        background var(--t-fast),
+        border-color var(--t-fast),
+        color var(--t-fast);
 }
 
 .pageBtn:hover:not(:disabled) {

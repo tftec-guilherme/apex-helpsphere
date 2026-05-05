@@ -214,9 +214,7 @@ export function Component(): JSX.Element {
                         </section>
 
                         <section className={styles.commentsSection}>
-                            <h3 className={styles.sectionTitle}>
-                                {t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}
-                            </h3>
+                            <h3 className={styles.sectionTitle}>{t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}</h3>
                             <CommentTimeline comments={ticket.comments} locale={localeTag} />
                             {/*
                               Story 06.5c.6 — Adicionar comentário desabilitado temporariamente.
@@ -226,8 +224,8 @@ export function Component(): JSX.Element {
                             <MessageBar intent="info" className={styles.commentNotice}>
                                 <MessageBarBody>
                                     <MessageBarTitle>Adicionar comentário — Lab Intermediário</MessageBarTitle>
-                                    Esta funcionalidade será habilitada quando você acoplar o pipeline RAG no Lab Intermediário (junto com sugestão
-                                    de resposta automática via IA). A thread acima exibe os comentários do seed.
+                                    Esta funcionalidade será habilitada quando você acoplar o pipeline RAG no Lab Intermediário (junto com sugestão de resposta
+                                    automática via IA). A thread acima exibe os comentários do seed.
                                 </MessageBarBody>
                             </MessageBar>
                         </section>

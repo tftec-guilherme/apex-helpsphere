@@ -65,14 +65,8 @@ export const SlaCountdown = ({ createdAt, priority, status, className }: Props) 
     }
 
     return (
-        <div
-            className={[styles.countdown, breached ? styles.breached : "", className].filter(Boolean).join(" ")}
-            role="status"
-            aria-live="polite"
-        >
-            <div className={styles.label}>
-                {breached ? `SLA estourou há ${formatHours(Math.abs(remaining))}` : `SLA em ${formatHours(remaining)}`}
-            </div>
+        <div className={[styles.countdown, breached ? styles.breached : "", className].filter(Boolean).join(" ")} role="status" aria-live="polite">
+            <div className={styles.label}>{breached ? `SLA estourou há ${formatHours(Math.abs(remaining))}` : `SLA em ${formatHours(remaining)}`}</div>
             <div className={styles.bar} aria-hidden="true">
                 <div className={styles.fill} style={{ width: `${pct}%` }} />
             </div>

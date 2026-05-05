@@ -33,7 +33,11 @@ import sys
 from azure.core.exceptions import ResourceNotFoundError
 from azure.identity.aio import AzureDeveloperCliCredential
 from azure.search.documents.indexes.aio import SearchIndexClient
-from azure.search.documents.indexes.models import SearchField, SearchFieldDataType, SearchIndex
+from azure.search.documents.indexes.models import (
+    SearchField,
+    SearchFieldDataType,
+    SearchIndex,
+)
 
 from load_azd_env import load_azd_env
 
