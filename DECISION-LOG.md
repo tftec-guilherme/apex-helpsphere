@@ -3,9 +3,9 @@
 > Documenta as decisões arquiteturais que levaram à escolha do template-base e às customizações aplicadas. Audiência: arquiteto sênior auditando a defesa técnica da disciplina.
 >
 > **Story raiz:** [06.5a — HelpSphere Template (REUSE fork Microsoft)](../../../../docs/stories/06.5a.helpsphere-template.md)
-> **Epic em curso:** [06.5c — Hybrid Microservices Python+.NET (B-PRACTICAL)](../../../../docs/stories/) · 9 stories · 4/9 Done · AC-4 + AC-5 fechados pós-Sessão 8
+> **Epic em curso:** [06.5c — Hybrid Microservices Python+.NET (B-PRACTICAL)](../../../../docs/stories/) · 9 stories · 5/9 Done · AC-4 + AC-5 fechados pós-Sessão 8 · backend Python crashloop RESOLVIDO pós-Sessão 9.2
 > **Version-anchor:** Q2-2026
-> **Última atualização:** 2026-05-04 (Sessão 9.1 — docs Decisão #16 cravada)
+> **Última atualização:** 2026-05-04 (Sessão 9.2 — Decisões #17 + #18 cravadas)
 
 ---
 
@@ -705,12 +705,127 @@ A Decisão #15 fechou o caminho `Python → pyodbc → SQL com MI` com 3 fixes c
 
 ### Backlog técnico (não bloqueia AC-4/AC-5 fechados)
 
-- **06.5c.3 remainder** (~30min): Bicep refinements (path routing final, tags retentionDays)
-- **06.5c.5 remainder** (~1h): workflow `dotnet build` + `dotnet test` step
-- **06.5c.6** (~2-2.5h): frontend `VITE_API_TICKETS_URL` (decisão pendente: build-time vs runtime injection)
+- **06.5c.3 remainder** (~30min): Bicep refinements (path routing final, tags retentionDays) — postponed (refinements vagos, ROI baixo, Bicep está funcional pós-Decisão #18)
+- **06.5c.5 remainder** (~1h): workflow `dotnet build` + `dotnet test` step — **DONE Sessão 9.2** (`.github/workflows/dotnet-test.yaml` criado)
+- **06.5c.6** (~2-2.5h): frontend `VITE_API_TICKETS_URL` — **DONE Sessão 9.1** (build-time injection via prebuild hook, commit `737fc22`)
 - **06.5c.8** (~2h): E2E smoke + qa-gate epic-level
-- **06.5c.9** finalização (~30min): PARA-O-ALUNO.md + README v2 (esta sessão entrega isso)
+- **06.5c.9** finalização (~30min): **DONE pós-Sessão 9.2** (Decisões #17 + #18 cravadas neste documento)
 - **APIM gateway** (D04 sinergia) — backlog futuro fora do epic 06.5c
+
+---
+
+## Decisão #17 — Token AAD explícito para User-Assigned MI no backend Python (Sessão 9.2)
+
+> **Status:** CRAVADA · Forma: refator de `app/backend/repositories/_pool.py` (commit `7a4ffd5`) · **Epic 06.5c — backend Python crashloop RESOLVIDO**, viabiliza próximas stories.
+
+### Contexto
+
+Após `azd up` real do prof na Sessão 9.1 (env `helpsphere-actions`), backend Python entrou em crashloop com `pyodbc.OperationalError ('HYT00', 'Login timeout expired (0)')` durante `aioodbc.create_pool()` na startup do app. Sintoma intermitente, fácil de confundir com problema de network/firewall.
+
+A primeira hipótese (registrada na memória como Surpresa #14) foi **"Bicep não injeta `AZURE_CLIENT_ID`"**. Sessão 9.2 investigou e descobriu que **estava equivocada** — Bicep injeta corretamente em ambos Container Apps (linhas 679 + 751 de `infra/main.bicep`). O env var sempre esteve presente.
+
+### Diagnóstico cravado em Sessão 9.2
+
+Investigação sistemática descartou hipóteses comuns:
+- **Network/firewall**: regra `ACAOutboundIP` (20.171.204.29) liberada ✅; `AllowAllAzureIPs` ✅. Tickets-service .NET conectava no mesmo SQL Server.
+- **Permissions**: `helpsphere-actions-aca-identity` tem `CONNECT` + `SELECT` em `tbl_tenants` (object-level grants da Story 06.5c.7) ✅.
+- **SQL DB Serverless paused**: estava `Paused`, mas resume + `autoPauseDelay = -1` não resolveu o crashloop (vide Decisão #18).
+- **Workers gunicorn race**: 8 workers × `minsize=2` parecia thundering herd, mas mesmo com restart limpo o problema persistiu.
+
+**Root cause real:** `Authentication=ActiveDirectoryMsi;User Id={clientId}` no DSN do ODBC Driver 18 é **incompatível com User-Assigned Managed Identity em Linux Container Apps**. O driver não obtém token AAD corretamente do IMDS quando há UMI atribuída ao container. A query manual do laptop (com `attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token}`) funcionava, validando que o problema é específico do modo `ActiveDirectoryMsi` do driver.
+
+### Decisão
+
+**Refatorar `app/backend/repositories/_pool.py`** para usar a abordagem **MS-recomendada**: obter token AAD via `azure.identity.ManagedIdentityCredential(client_id=AZURE_CLIENT_ID)` no Python e injetar via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before` da pyodbc connection. Connection string fica SEM cláusula `Authentication=...`.
+
+**Implementação:**
+
+- Nova classe `MITokenConnectionFactory` substitui `aioodbc.Pool` (mesma API `async with factory.acquire() as conn` — repositories não mudam).
+- Token cached via `threading.Lock` por **50min** (refresh antes do TTL real de 60min do AAD).
+- **Eager token fetch** no startup: `await asyncio.to_thread(factory._get_token_struct)` valida que MI funciona ANTES de iniciar workers (fail-fast) — sem forçar conexão SQL.
+- **Connection Timeout 30s → 60s** no DSN (defesa em profundidade caso DB cold-start, vide Decisão #18).
+- Em dev local: `DefaultAzureCredential()` (azd auth login / az login / VS Code Azure ext).
+- API mantida 100% compatível: `close()`, `wait_closed()`, `acquire()` — sem refactor de `tenants.py`.
+
+### Por que essa solução vs alternativas
+
+| Alternativa | Por que rejeitada |
+|---|---|
+| Trocar para `Authentication=ActiveDirectoryServicePrincipal` | Não resolve UMI; precisaria secret no DSN (anti-pattern) |
+| Usar `ActiveDirectoryDefault` | Driver-side ainda — mesmo class de bug |
+| Migrar para asyncpg + Postgres | Mudança de DB engine — escopo enorme, fora do epic |
+| Usar `pyodbc.connect(... attrs_before=...)` em cada query (sem pool) | Performance ruim para workload >10 req/s; HelpSphere atende com fresh-conn-per-acquire mas keeping factory pattern para upgrade futuro |
+
+A abordagem escolhida é **idiomática** para Python + Azure SQL + UMI, **documentada na Microsoft Learn**, e tem **drop-in compatibility** com a API existente.
+
+### Trade-off aceito
+
+- **Conexões fresh por request** (sem pool warm): aceitável para workload do HelpSphere (lookup esporádico em `tbl_tenants` para chat session validation). Performance ~50-100ms extra na primeira call por request — invisível em demo de aula.
+- **Sem `setup` callback nativo do aioodbc**: workaround é wrapper minimal (~140 linhas). Mantém zero dependências novas.
+
+### Lição pedagógica
+
+Quando o ODBC Driver 18 retorna `Login timeout expired (0)`, NÃO assumir que é network sem antes testar com **token explícito**. O `(0)` no parêntese significa que o driver nem esperou — falhou na obtenção/parsing do token, não na conexão TCP. **Tickets-service .NET nunca teve o bug** porque `DefaultAzureCredential` do `Microsoft.Data.SqlClient` resolve UMI corretamente via env var `AZURE_CLIENT_ID` (mesmo padrão MS, implementação diferente).
+
+### Files alterados
+
+- `app/backend/repositories/_pool.py` — refator completo (commit `7a4ffd5`)
+
+### Validação
+
+- ✅ Local env do prof (`helpsphere-actions`): backend `/` → 200 (604ms), `/api/tenants/me` sem JWT → 403 (596ms), 8 workers gunicorn boot OK
+- ✅ CI fresh provision (run `25349888625`): smoke backend Python (INFORMATIONAL) passou ao primeiro try em env limpo
+
+---
+
+## Decisão #18 — Azure SQL Serverless `autoPauseDelay = -1` no template (Sessão 9.2)
+
+> **Status:** CRAVADA · Forma: patch de 1 linha em `infra/main.bicep` (commit `7a4ffd5`)
+
+### Contexto
+
+A Decisão #5 da Sessão 2.3 escolheu `GP_S_Gen5_2` (Serverless) com `autoPauseDelay: 60` (1h) como FinOps win — DB pausa quando ociosa. Sessão 9.2 descobriu que isso **causa cold-start de 30-60s** quando o app tenta conectar após período de inatividade (ex: 30min de teoria entre 2 demos numa aula gravada).
+
+Backend Python com `Connection Timeout=30s` falhava no resume; tickets-service .NET tinha primeira request lenta após pausa.
+
+### Decisão
+
+**`autoPauseDelay: 60 → -1`** no Bicep — DB sempre Online.
+
+```bicep
+// Sessão 9.2 (Decisão #18): autoPauseDelay = -1 (DESABILITADO).
+// Trade-off: ~$15-30/mês a mais vs interrupção do app durante demo.
+// Cold-start de Serverless paused leva 30-60s; backend Python (Connection
+// Timeout=60s) cobre, mas tickets-service .NET pode ter primeira request
+// lenta. Para ambiente de aula gravada, confiabilidade > FinOps savings.
+// Aluno em produção pode mudar para 60min aceitando o trade-off.
+autoPauseDelay: -1
+```
+
+### Trade-off explícito
+
+| Cenário | `autoPauseDelay: 60` (anterior) | `autoPauseDelay: -1` (cravado) |
+|---|---|---|
+| Custo baseline | ~$5-10/mês (DB pausada maior parte do tempo) | ~$25-40/mês (DB sempre Online) |
+| Primeira request após pausa | 30-60s | <1s |
+| Demo de aula (intermitência 10min ON / 30min OFF) | ❌ App pode bater no auto-pause no meio | ✅ Sempre responsiva |
+| Aluno em produção real (24/7 traffic) | ✅ Não bate auto-pause | Custo extra desnecessário |
+
+**Para template pedagógico** o trade-off é claro: ~$15-30/mês > qualquer interrupção visível em demo gravada que vai ficar anos no ar.
+
+### Files alterados
+
+- `infra/main.bicep` — autoPauseDelay 60 → -1 + comment explicando trade-off (commit `7a4ffd5`)
+
+### Como o aluno reverte (se quiser FinOps)
+
+Edit `infra/main.bicep`:
+```diff
+- autoPauseDelay: -1
++ autoPauseDelay: 60
+```
+
+E aceitar que a primeira request após 1h de inatividade vai levar 30-60s (cold-start do Serverless resume).
 
 ---
 
@@ -730,4 +845,5 @@ A Decisão #15 fechou o caminho `Python → pyodbc → SQL com MI` com 3 fixes c
 | 2026-05-04 | @aiox-master (Orion) orquestrando @dev/@devops/@qa (multi-agent SDC) | **Sessões 6-7 — Epic 06.5c B-PRACTICAL hybrid wiring.** Stories 06.5c.1, 06.5c.2 done (skeleton .NET 10 + 5 endpoints + JWT tenant + dual-tier tests). Story 06.5c.3 partial (Bicep multi-app: 2ª Container App `capps-tickets` + 2ª MI + 2ª image ACR). Bug fixes Dockerfile (.slnx em vez de .sln, exclusão tests/, `language=docker`). 2/9 do epic Done. |
 | 2026-05-04 | @aiox-master (Orion) orquestrando 2 SDC chains | **Sessão 8 — AC-4 + AC-5 do epic 06.5c FECHADOS.** Story 06.5c.4 (commit `d0ce22c`, run #24 GREEN): `sql_init.sh` ganha 9 grants object-level scoped exclusivamente para tickets MI (SELECT/INSERT/UPDATE em tbl_tickets, SELECT/INSERT em tbl_comments, REFERENCES em tbl_tenants, EXECUTE em sys.fn_my_permissions) + verificação fail-fast. Verificável via `sys.database_permissions`. Story 06.5c.7 (commit `e5842e6`, run #25 GREEN): Python `/api/tickets/*` agora retorna **HTTP 410 Gone** com header `Link: </api/v2/tickets>; rel="successor-version"` (RFC 8288); REVOKE de `db_datareader` + `db_datawriter` do backend MI — ficou apenas com `SELECT em tbl_tenants`. **Decisão #16 PASSOU DE PLANEJADA → CRAVADA** com trajetória completa Sessões 6-8 documentada. 4/9 stories Done · 2/9 partial · 3/9 pending. Lição pedagógica: least privilege real é granular (object-level), deprecation tem padrão (RFC 8288 Link header), B-PRACTICAL > Big-bang. |
 | 2026-05-04 | @aiox-master (Orion) executando docs Sessão 9.1 | **Sessão 9.1 — docs cravadas para gravação slide 13+.** Decisão #16 movida de "Backlog futuro PLANEJADA" → CRAVADA com seção comprehensive (Sessões 6-8 trajetória + estado final epic + defesa arquitetural + 4 lições pedagógicas). README v2 do apex-helpsphere reflete stack real (Container App .NET tickets MI + Python /api/tickets 410 Gone). PARA-O-ALUNO.md criado como entrypoint do aluno (fork → clone → azd up). Slides 13-14 do `azure-retail/02_Apresentação/` corrigidos (URL fork, fork-first workflow, abstração "API serverless" no slide 13 — Opção A). |
+| 2026-05-04 | @aiox-master (Orion) executando como @dev/@devops post-Sessão 9.1 | **Sessão 9.2 — backend Python crashloop RESOLVIDO + Decisões #17 e #18 cravadas (commits `7a4ffd5` + `a776cc5`).** Investigação sistemática descobriu que **Surpresa #14 da memória estava equivocada** (Bicep sempre injetou `AZURE_CLIENT_ID` corretamente — linhas 679 + 751 de main.bicep). Root cause real: ODBC Driver 18 + `Authentication=ActiveDirectoryMsi;User Id={clientId}` é incompatível com User-Assigned MI em Linux Container Apps — driver não obtém token AAD corretamente. **Decisão #17 cravada:** refator de `app/backend/repositories/_pool.py` para abordagem MS-recomendada (token via `azure.identity.ManagedIdentityCredential` + injeção via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before`). Token cached 50min, Connection Timeout 30s→60s, eager fetch fail-fast. API mantida compatível — repositories não mudaram. **Decisão #18 cravada:** `autoPauseDelay: 60 → -1` em `infra/main.bicep` (DB sempre Online; trade-off ~$15-30/mês vs interrupção em demo gravada). **Story 06.5c.5 fechada** (commit `+a776cc5`): novo workflow `.github/workflows/dotnet-test.yaml` para build + test do tickets-service .NET 10 a cada PR/push em `app/tickets-service/**`. **Validação:** local env do prof + CI fresh provision (run `25349888625`) ambos GREEN nos smokes backend Python + tickets .NET. Epic progress: 5/9 Done (06.5c.1, .2, .4, .6, .7) + 1 Done nesta sessão (.5) → **6/9 Done** + 1 partial (.3) + 2 pending (.8, .9). Lição pedagógica: token explícito > driver-side MSI auth para User-Assigned MI em Linux. |
 | 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |

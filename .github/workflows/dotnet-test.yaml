@@ -1,0 +1,62 @@
+name: .NET tickets-service check
+
+# HelpSphere — Story 06.5c.5 (Sessão 9.2)
+# Build + test do tickets-service .NET 10 a cada push/PR que toca o código.
+# Espelha o pattern do python-test.yaml e frontend.yaml para consistência.
+#
+# Tier única (sqlite in-memory) por enquanto: dual-tier MsSql via Testcontainers
+# requer docker daemon no runner — funciona em ubuntu-latest mas adiciona ~2min
+# de pull image. Postergado para sessão futura (story-level decision).
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "app/tickets-service/**"
+      - ".github/workflows/dotnet-test.yaml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "app/tickets-service/**"
+      - ".github/workflows/dotnet-test.yaml"
+
+jobs:
+  build_and_test:
+    name: Build + test tickets-service .NET 10
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app/tickets-service
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          # .NET 10 ainda pode estar em preview no momento — habilita pré-releases
+          # (no-op se já é GA). Ref: https://github.com/actions/setup-dotnet#supported-version-syntax
+          include-prerelease: true
+
+      - name: Print .NET version
+        run: dotnet --info
+
+      - name: Restore dependencies
+        run: dotnet restore TicketsService.slnx
+
+      - name: Build (Release, no warnings tolerated)
+        run: dotnet build TicketsService.slnx --configuration Release --no-restore /warnaserror
+
+      - name: Run tests (sqlite tier — sem Docker)
+        # FilterTrait excluiria sqledge tier se houvesse [Trait("Tier","SqlEdge")].
+        # Hoje todos os testes rodam; sqledge tier é skip via env var TESTCONTAINERS_RYUK_DISABLED
+        # quando docker daemon não disponível (xUnit Skip nas fixtures).
+        run: dotnet test TicketsService.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage"
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-results
+          path: ./app/tickets-service/tests/**/TestResults/**/*
+          if-no-files-found: warn
