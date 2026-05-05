@@ -252,9 +252,42 @@ def _server_app_features_payload(server_app_id: str) -> Application:
 async def patch_server_app_features(
     graph_client: GraphServiceClient, server_object_id: str, server_app_id: str
 ) -> None:
-    """Apply identifierUris + scope + accessTokenV2 + idTokenIssuance — idempotent."""
+    """Apply identifierUris + scope + accessTokenV2 + idTokenIssuance — idempotent.
+
+    Microsoft Graph rejeita PATCH em oauth2PermissionScopes quando o scope já
+    existe e está `isEnabled=true` (CannotDeleteOrUpdateEnabledEntitlement).
+    Solução: GET primeiro, e se o scope `access_as_user` JÁ existe com o ID
+    determinístico esperado, EXCLUI `oauth2_permission_scopes` do payload e
+    PATCH-a apenas os outros campos (identifierUris + requestedAccessTokenVersion
+    + web.implicitGrantSettings).
+    """
     print(f"[patch_server_app_features] Applying server app features → {server_app_id}")
-    payload = _server_app_features_payload(server_app_id)
+
+    # GET current state to decide if we need to include scopes in the patch
+    existing = await graph_client.applications.by_application_id(server_object_id).get()
+    scope_already_correct = False
+    if existing and existing.api and existing.api.oauth2_permission_scopes:
+        for scope in existing.api.oauth2_permission_scopes:
+            if (
+                str(scope.id) == str(ACCESS_AS_USER_SCOPE_ID)
+                and scope.value == SCOPE_NAME
+                and scope.is_enabled is True
+            ):
+                scope_already_correct = True
+                print("[patch_server_app_features] Scope access_as_user already correct → skipping scope patch")
+                break
+
+    if scope_already_correct:
+        # PATCH WITHOUT oauth2_permission_scopes (avoids enabled-scope mutation error)
+        payload = Application(
+            identifier_uris=[f"api://{server_app_id}"],
+            api=ApiApplication(requested_access_token_version=2),
+            web=WebApplication(
+                implicit_grant_settings=ImplicitGrantSettings(enable_id_token_issuance=True),
+            ),
+        )
+    else:
+        payload = _server_app_features_payload(server_app_id)
     await graph_client.applications.by_application_id(server_object_id).patch(payload)
 
 
