@@ -45,16 +45,15 @@ services:
           interactive: false
           continueOnError: false
       # This hook is called when Azure Container Apps is the host.
-      # Story 06.5c.6 (Decisão #16): injeta VITE_API_TICKETS_URL pegando o output
-      # `TICKETS_BACKEND_URI` do azd env (escrito pelo Bicep durante provision).
-      # Build-time substitution = padrão Vite. Sem env var setada, frontend fallback
-      # para mesmo origin (Python backend retorna 410 Gone — comportamento detectável).
+      # Decisão #19 (runtime config): a URL do tickets-service é exposta pelo backend
+      # via `/auth_setup.ticketsApiBase` (lendo env `TICKETS_BACKEND_URI`), então o build
+      # do frontend é environment-agnóstico — o mesmo bundle serve dev/staging/prod.
+      # Removida a injeção build-time de `VITE_API_TICKETS_URL` (eliminava pegadinha
+      # "tickets retornam 410 Gone" quando aluno esquecia de exportar a env antes do build).
       prebuild:
         windows:
           shell: pwsh
           run: |
-            $env:VITE_API_TICKETS_URL = (azd env get-value TICKETS_BACKEND_URI 2>$null)
-            if (-not $env:VITE_API_TICKETS_URL) { Write-Host "[06.5c.6] VITE_API_TICKETS_URL nao setado - frontend usara mesmo origin" }
             cd ../frontend
             npm install
             npm run build
@@ -63,8 +62,6 @@ services:
         posix:
           shell: sh
           run: |
-            export VITE_API_TICKETS_URL="$(azd env get-value TICKETS_BACKEND_URI 2>/dev/null || echo '')"
-            if [ -z "$VITE_API_TICKETS_URL" ]; then echo "[06.5c.6] VITE_API_TICKETS_URL nao setado - frontend usara mesmo origin"; fi
             cd ../frontend
             npm install
             npm run build

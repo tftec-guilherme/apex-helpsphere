@@ -121,7 +121,10 @@ mimetypes.add_type("text/css", ".css")
 
 @bp.route("/")
 async def index():
-    return await bp.send_static_file("index.html")
+    response = await bp.send_static_file("index.html")
+    # Local dev: previne cache de bundles obsoletos (chunks com hash velho que somem ao rebuildar).
+    response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
 
 
 # Empty page is recommended for login redirect to work.
@@ -276,7 +279,10 @@ async def chat_stream(auth_claims: dict[str, Any]):
 @bp.route("/auth_setup", methods=["GET"])
 def auth_setup():
     auth_helper = current_app.config[CONFIG_AUTH_CLIENT]
-    return jsonify(auth_helper.get_auth_setup_for_client())
+    setup = auth_helper.get_auth_setup_for_client()
+    # Runtime config (env-driven) — evita URL embedded no bundle Vite.
+    setup["ticketsApiBase"] = os.environ.get("TICKETS_BACKEND_URI", "")
+    return jsonify(setup)
 
 
 @bp.route("/config", methods=["GET"])

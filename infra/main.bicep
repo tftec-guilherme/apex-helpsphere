@@ -757,11 +757,12 @@ module acaTickets 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
       AZURE_CLIENT_ID: (deploymentTarget == 'containerapps') ? acaTicketsIdentity!.outputs.clientId : ''
       AZURE_SQL_SERVER: useSqlServer ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
       AZURE_SQL_DATABASE: useSqlServer ? sqlDatabaseName : ''
-      // Microsoft.Identity.Web JWT bootstrap (placeholder GUIDs aceitos se Audience nunca check)
+      // Microsoft.Identity.Web JWT bootstrap — usa serverAppId (o resource da API), nao clientAppId.
+      // Tokens sao emitidos com aud=api://{serverAppId} quando frontend pede scope api://{serverAppId}/access_as_user.
       AzureAd__Instance: environment().authentication.loginEndpoint
       AzureAd__TenantId: !empty(authTenantId) ? authTenantId : tenantId
-      AzureAd__ClientId: !empty(clientAppId) ? clientAppId : '00000000-0000-0000-0000-000000000000'
-      AzureAd__Audience: !empty(clientAppId) ? 'api://${clientAppId}' : 'api://00000000-0000-0000-0000-000000000000'
+      AzureAd__ClientId: !empty(serverAppId) ? serverAppId : '00000000-0000-0000-0000-000000000000'
+      AzureAd__Audience: !empty(serverAppId) ? 'api://${serverAppId}' : 'api://00000000-0000-0000-0000-000000000000'
       ASPNETCORE_ENVIRONMENT: 'Production'
       ASPNETCORE_URLS: 'http://+:8080'
     }

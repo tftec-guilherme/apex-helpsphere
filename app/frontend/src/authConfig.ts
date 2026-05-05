@@ -50,6 +50,9 @@ interface AuthSetup {
     tokenRequest: {
         scopes: Array<string>;
     };
+    // Runtime config (Decisão #19): URL do tickets-service .NET vinda do backend
+    // (env TICKETS_BACKEND_URI) em vez de embed no bundle Vite. Build é env-agnóstico.
+    ticketsApiBase: string;
 }
 
 // Fetch the auth setup JSON data from the API if not already cached
@@ -70,6 +73,8 @@ export const requireAccessControl = authSetup.requireAccessControl;
 export const enableUnauthenticatedAccess = authSetup.enableUnauthenticatedAccess;
 
 export const requireLogin = requireAccessControl && !enableUnauthenticatedAccess;
+
+export const ticketsApiBase = (authSetup.ticketsApiBase ?? "").replace(/\/+$/, "");
 
 /**
  * Configuration object to be passed to MSAL instance on creation.
