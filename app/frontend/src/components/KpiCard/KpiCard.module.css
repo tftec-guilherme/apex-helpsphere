@@ -1,42 +1,59 @@
 .card {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-5);
+    gap: var(--space-3);
+    padding: var(--space-6) var(--space-5) var(--space-5);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-1);
-    transition: box-shadow var(--t-base), transform var(--t-base);
+    transition: box-shadow var(--t-base), transform var(--t-base), border-color var(--t-base);
+    overflow: hidden;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--color-border-strong);
+    transition: background var(--t-base);
 }
 
 .card:hover {
     box-shadow: var(--shadow-2);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    border-color: var(--color-border-strong);
 }
 
 .label {
-    font-family: var(--font-body);
-    font-size: var(--fs-xs);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
     font-weight: var(--fw-medium);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-muted);
+    letter-spacing: 0.1em;
+    color: var(--color-text-subtle);
+    line-height: 1;
 }
 
 .value {
     font-family: var(--font-display);
-    font-size: var(--fs-3xl);
+    font-size: var(--fs-4xl);
     font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
+    line-height: 0.95;
     color: var(--color-text);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
 }
 
 .delta {
     font-family: var(--font-mono);
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
+    margin-top: auto;
 }
 
 .delta.up {
@@ -47,18 +64,24 @@
     color: var(--color-danger);
 }
 
-.accent-default {
-    border-left: 3px solid var(--color-border-strong);
+.accent-default::before {
+    background: var(--color-border-strong);
 }
 
-.accent-success {
-    border-left: 3px solid var(--color-success);
+.accent-success::before {
+    background: var(--color-success);
 }
 
-.accent-warn {
-    border-left: 3px solid var(--color-warn);
+.accent-warn::before {
+    background: var(--color-warn);
 }
 
-.accent-danger {
-    border-left: 3px solid var(--color-danger);
+.accent-danger::before {
+    background: var(--color-danger);
+}
+
+.accent-success .value,
+.accent-warn .value,
+.accent-danger .value {
+    font-family: var(--font-display);
 }

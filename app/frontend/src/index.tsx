@@ -62,6 +62,25 @@ const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
         try {
             await msalInstance.initialize();
 
+            // CRITICAL: handleRedirectPromise must run on every page load before any
+            // other MSAL call. Quando o user volta do AAD apos loginRedirect, este
+            // metodo processa o hash da URL (#code=...) e completa o login fluxo.
+            // Sem isso, loginRedirect quebra silenciosamente.
+            try {
+                const redirectResult = await msalInstance.handleRedirectPromise();
+                if (redirectResult?.account) {
+                    msalInstance.setActiveAccount(redirectResult.account);
+                    // Apos consumir o hash MSAL, redireciona para root.
+                    // pathname=/redirect (servido pelo backend) precisa virar / (hashRouter).
+                    if (window.location.pathname === "/redirect") {
+                        window.location.replace("/");
+                    }
+                }
+            } catch (redirectErr) {
+                // eslint-disable-next-line no-console
+                console.error("MSAL handleRedirectPromise failed", redirectErr);
+            }
+
             // Default active account to the first one if none is set
             if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
                 msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);

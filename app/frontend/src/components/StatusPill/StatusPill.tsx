@@ -27,8 +27,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const StatusPill = ({ status, size = "sm", className }: Props) => {
-    const key = status.toLowerCase();
-    const label = STATUS_LABELS[status] || status;
+    const safeStatus = status || "Unknown";
+    const key = safeStatus.toLowerCase();
+    const label = STATUS_LABELS[safeStatus] || safeStatus;
     const variantClass = styles[`pill-${key}`] || styles["pill-default"];
     const sizeClass = styles[`size-${size}`];
     const cls = [styles.pill, variantClass, sizeClass, className].filter(Boolean).join(" ");

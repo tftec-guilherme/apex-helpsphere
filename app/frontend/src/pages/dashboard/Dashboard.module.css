@@ -1,33 +1,8 @@
 .page {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
-    padding: var(--space-6);
-    max-width: var(--content-max);
-    margin: 0 auto;
+    gap: var(--space-7);
     width: 100%;
-}
-
-.header {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
-
-.header h2 {
-    font-family: var(--font-display);
-    font-size: var(--fs-3xl);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
-    letter-spacing: -0.015em;
-    margin: 0;
-}
-
-.subtitle {
-    font-family: var(--font-body);
-    font-size: var(--fs-base);
-    color: var(--color-text-muted);
-    margin: 0;
 }
 
 .kpis {
@@ -38,54 +13,82 @@
 
 .charts {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-5);
 }
 
 .chartCard {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    padding: var(--space-5);
-    box-shadow: var(--shadow-2);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-1);
     display: flex;
     flex-direction: column;
+    gap: var(--space-5);
+    transition: box-shadow var(--t-base), border-color var(--t-base);
+}
+
+.chartCard:hover {
+    box-shadow: var(--shadow-2);
+    border-color: var(--color-border-strong);
+}
+
+.chartCardHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
     gap: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-4);
 }
 
 .chartCard h3 {
     font-family: var(--font-display);
-    font-size: var(--fs-xl);
+    font-size: var(--fs-lg);
     font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
+    line-height: 1.2;
     margin: 0;
     color: var(--color-text);
+    letter-spacing: -0.01em;
+}
+
+.chartCardKicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-subtle);
 }
 
 .loading,
 .error,
 .empty {
-    padding: var(--space-6);
+    padding: var(--space-8) var(--space-6);
     font-family: var(--font-body);
     font-size: var(--fs-base);
     color: var(--color-text-muted);
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
 }
 
 .error {
     color: var(--color-danger);
     background: var(--color-danger-soft);
-    border-radius: var(--radius);
-    border: 1px solid var(--color-danger);
-    margin: var(--space-6);
+    border-color: var(--color-danger);
+}
+
+@media (max-width: 1024px) {
+    .charts {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 900px) {
     .kpis {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .charts {
-        grid-template-columns: 1fr;
     }
 }
 

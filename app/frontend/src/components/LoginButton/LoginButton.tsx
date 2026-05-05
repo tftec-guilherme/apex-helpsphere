@@ -22,66 +22,42 @@ export const LoginButton = () => {
         fetchUsername();
     }, []);
 
-    const handleLoginPopup = () => {
-        /**
-         * When using popup and silent APIs, we recommend setting the redirectUri to a blank page or a page
-         * that does not implement MSAL. Keep in mind that all redirect routes must be registered with the application
-         * For more information, please follow this link: https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/login-user.md#redirecturi-considerations
-         */
+    const handleLoginRedirect = () => {
+        // loginRedirect (vs popup): navega janela inteira para AAD, robusto contra popup blockers.
+        // prompt:select_account força AAD a sempre mostrar seletor — UX claro quando user
+        // quer alternar conta vs cached SSO.
         instance
-            .loginPopup({
+            .loginRedirect({
                 ...loginRequest,
-                redirectUri: getRedirectUri()
+                redirectUri: getRedirectUri(),
+                prompt: "select_account"
             })
             .catch(error => {
-                // Diagnóstico: banner DOM selecionável (alert nativo não permite copy).
                 // eslint-disable-next-line no-console
-                console.error("[MSAL loginPopup] error:", error);
-                const code = error?.errorCode || error?.name || "unknown";
-                const msg = error?.errorMessage || error?.message || String(error);
-                const stack = error?.stack || "";
-                const fullText = `[${code}]\n${msg}\n\n${stack}`;
-
-                // Remove banner anterior se existir
-                const existing = document.getElementById("msal-error-banner");
-                if (existing) existing.remove();
-
-                const banner = document.createElement("div");
-                banner.id = "msal-error-banner";
-                banner.style.cssText =
-                    "position:fixed;top:0;left:0;right:0;background:#fee2e2;border-bottom:3px solid #dc2626;padding:16px 24px;z-index:99999;font-family:Consolas,monospace;font-size:13px;color:#7f1d1d;max-height:60vh;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);user-select:text;";
-                const closeBtn =
-                    '<button onclick="document.getElementById(\'msal-error-banner\').remove()" style="float:right;cursor:pointer;background:#dc2626;color:white;border:none;padding:4px 12px;border-radius:4px;">Fechar</button>';
-                const pre = document.createElement("pre");
-                pre.style.cssText = "white-space:pre-wrap;margin:8px 0 0 0;user-select:text;";
-                pre.textContent = fullText;
-                banner.innerHTML = `<strong>LOGIN ERROR — selecione o texto abaixo e copie (Ctrl+C):</strong> ${closeBtn}`;
-                banner.appendChild(pre);
-                document.body.appendChild(banner);
-            })
-            .then(async () => {
-                setLoggedIn(await checkLoggedIn(instance));
-                setUsername((await getUsername(instance)) ?? "");
+                console.error("[MSAL loginRedirect] error:", error);
             });
     };
-    const handleLogoutPopup = () => {
+
+    const handleLogoutRedirect = () => {
         if (activeAccount) {
+            // logoutRedirect + clear cache: garante que MSAL nao mantem refresh tokens
+            // entre sessoes, evitando comportamento confuso ao trocar de conta.
             instance
-                .logoutPopup({
-                    mainWindowRedirectUri: "/", // redirects the top level app after logout
-                    account: instance.getActiveAccount()
+                .logoutRedirect({
+                    account: activeAccount,
+                    postLogoutRedirectUri: "/"
                 })
-                .catch(error => console.log(error))
-                .then(async () => {
-                    setLoggedIn(await checkLoggedIn(instance));
-                    setUsername((await getUsername(instance)) ?? "");
+                .catch(error => {
+                    // eslint-disable-next-line no-console
+                    console.error("[MSAL logoutRedirect] error:", error);
                 });
         } else {
             appServicesLogout();
         }
     };
+
     return (
-        <Button className={styles.loginButton} onClick={loggedIn ? handleLogoutPopup : handleLoginPopup}>
+        <Button className={styles.loginButton} onClick={loggedIn ? handleLogoutRedirect : handleLoginRedirect}>
             {loggedIn ? `${t("logout")}\n${username}` : `${t("login")}`}
         </Button>
     );

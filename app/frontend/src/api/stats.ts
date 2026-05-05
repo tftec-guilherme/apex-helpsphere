@@ -12,15 +12,17 @@
 import { getHeaders } from "./api";
 import { ticketsApiBase } from "../authConfig";
 
+// Backend .NET serializa em snake_case (JsonNamingPolicy.SnakeCaseLower global no Program.cs).
+// Mantemos snake_case no contract pra paridade com `ticketsModels.ts`.
 export interface TicketStats {
-    totalOpen: number;
-    slaBreachPct: number;
-    criticalOpen: number;
+    total_open: number;
+    sla_breach_pct: number;
+    critical_open: number;
     last24h: number;
-    byStatus: Array<{ status: string; count: number }>;
-    byCategory: Array<{ category: string; count: number }>;
-    byPriority: Array<{ priority: string; count: number }>;
-    dailyVolume7d: Array<{ date: string; count: number }>;
+    by_status: Array<{ status: string; count: number }>;
+    by_category: Array<{ category: string; count: number }>;
+    by_priority: Array<{ priority: string; count: number }>;
+    daily_volume7d: Array<{ date: string; count: number }>;
 }
 
 export async function getStatsApi(idToken: string | undefined): Promise<TicketStats> {

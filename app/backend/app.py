@@ -127,11 +127,16 @@ async def index():
     return response
 
 
-# Empty page is recommended for login redirect to work.
-# See https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/initialization.md#redirecturi-considerations for more information
+# Login redirect — serve a SPA bundle full (nao blank).
+# Quando MSAL.js usa loginRedirect, browser volta para /redirect#code=...
+# O React boot precisa rodar para que handleRedirectPromise() consuma o hash
+# e complete o login. Servir index.html garante que o app inicializa.
+# (Original template usava blank string assumindo popup-only flow.)
 @bp.route("/redirect")
 async def redirect():
-    return ""
+    response = await bp.send_static_file("index.html")
+    response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
 
 
 @bp.route("/favicon.ico")

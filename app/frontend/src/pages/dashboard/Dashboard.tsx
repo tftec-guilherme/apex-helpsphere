@@ -43,36 +43,46 @@ const Dashboard = () => {
     if (error) return <div className={styles.error}>Erro: {error}</div>;
     if (!stats) return <div className={styles.empty}>Sem dados.</div>;
 
+    // Defensive defaults — backend pode retornar null em valores quando o tenant
+    // nao tem nenhum ticket ainda (NULLIF protege div/0 mas retorna null no JSON).
+    const slaBreachPct = stats.sla_breach_pct ?? 0;
+    const totalOpen = stats.total_open ?? 0;
+    const criticalOpen = stats.critical_open ?? 0;
+    const last24h = stats.last24h ?? 0;
+    const byCategory = stats.by_category ?? [];
+    const dailyVolume = stats.daily_volume7d ?? [];
+
     return (
         <div className={styles.page}>
-            <header className={styles.header}>
-                <h2>Dashboard operacional</h2>
-                <p className={styles.subtitle}>Visão consolidada da fila de tickets do tenant</p>
-            </header>
-
             <section className={styles.kpis} aria-label="Indicadores principais">
-                <KpiCard label="Tickets abertos" value={stats.totalOpen} />
+                <KpiCard label="Tickets abertos" value={totalOpen} />
                 <KpiCard
                     label="SLA breach"
-                    value={`${stats.slaBreachPct.toFixed(1)}%`}
-                    accent={stats.slaBreachPct > 10 ? "danger" : "default"}
+                    value={`${slaBreachPct.toFixed(1)}%`}
+                    accent={slaBreachPct > 10 ? "danger" : "default"}
                 />
                 <KpiCard
                     label="Críticos"
-                    value={stats.criticalOpen}
-                    accent={stats.criticalOpen > 0 ? "warn" : "default"}
+                    value={criticalOpen}
+                    accent={criticalOpen > 0 ? "warn" : "default"}
                 />
-                <KpiCard label="Últimas 24h" value={stats.last24h} />
+                <KpiCard label="Últimas 24h" value={last24h} />
             </section>
 
             <section className={styles.charts} aria-label="Distribuição e tendência">
                 <article className={styles.chartCard}>
-                    <h3>Volume por categoria</h3>
-                    <CategoryBars data={stats.byCategory} />
+                    <header className={styles.chartCardHeader}>
+                        <h3>Volume por categoria</h3>
+                        <span className={styles.chartCardKicker}>Total acumulado</span>
+                    </header>
+                    <CategoryBars data={byCategory} />
                 </article>
                 <article className={styles.chartCard}>
-                    <h3>Volume últimos 7 dias</h3>
-                    <Volume7dLine data={stats.dailyVolume7d} />
+                    <header className={styles.chartCardHeader}>
+                        <h3>Volume últimos 7 dias</h3>
+                        <span className={styles.chartCardKicker}>Tendência</span>
+                    </header>
+                    <Volume7dLine data={dailyVolume} />
                 </article>
             </section>
         </div>

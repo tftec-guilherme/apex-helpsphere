@@ -145,8 +145,9 @@ export function Component(): JSX.Element {
         ? `#${ticket.ticket_id} ${ticket.subject} — ${t("helpsphere.appName")}`
         : `${t("helpsphere.tickets.pageTitle")} — ${t("helpsphere.appName")}`;
 
-    const priorityLabel = ticket ? PRIORITY_LABELS[ticket.priority] || ticket.priority : "";
-    const priorityClass = ticket ? styles[`pri-${ticket.priority.toLowerCase()}`] : "";
+    const safePriority = ticket?.priority || "";
+    const priorityLabel = ticket ? PRIORITY_LABELS[safePriority] || safePriority || "—" : "";
+    const priorityClass = ticket && safePriority ? styles[`pri-${safePriority.toLowerCase()}`] : "";
 
     return (
         <div className={styles.page}>

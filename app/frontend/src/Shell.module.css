@@ -6,12 +6,14 @@
     color: var(--color-text);
 }
 
+/* ============== SIDEBAR ============== */
+
 .sidebar {
     display: flex;
     flex-direction: column;
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
-    padding: var(--space-5) var(--space-4);
+    padding: var(--space-6) var(--space-4) var(--space-5);
     position: sticky;
     top: 0;
     height: 100vh;
@@ -21,74 +23,131 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-3) var(--space-6);
+    padding: 0 var(--space-3) var(--space-7);
 }
 
-.brandMark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    background: var(--color-text);
-    color: var(--color-accent);
-    font-family: var(--font-display);
-    font-size: var(--fs-lg);
-    font-weight: var(--fw-bold);
-    line-height: 1;
+.brandText {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
 }
 
 .brandName {
     font-family: var(--font-display);
     font-size: var(--fs-xl);
     font-weight: var(--fw-semibold);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     color: var(--color-text);
+}
+
+.brandSubtitle {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-subtle);
+    margin-top: 2px;
 }
 
 .nav {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: var(--space-6);
     flex: 1;
+}
+
+.navSection {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.navSectionLabel {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-subtle);
+    padding: 0 var(--space-3) var(--space-2);
 }
 
 .navLink {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 2px;
     padding: var(--space-3) var(--space-3);
     border-radius: var(--radius);
+    text-decoration: none;
+    transition: background var(--t-fast), color var(--t-fast), padding-left var(--t-fast);
+    border-left: 2px solid transparent;
+    margin-left: -2px;
+}
+
+.navLinkLabel {
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
     color: var(--color-text-muted);
-    text-decoration: none;
-    transition: background var(--t-fast), color var(--t-fast);
+    line-height: 1.2;
+    transition: color var(--t-fast);
+}
+
+.navLinkDescription {
+    font-size: 0.6875rem;
+    color: var(--color-text-subtle);
+    line-height: 1.3;
+    transition: color var(--t-fast);
 }
 
 .navLink:hover {
     background: var(--color-bg);
+}
+
+.navLink:hover .navLinkLabel {
     color: var(--color-text);
 }
 
 .navLinkActive {
-    background: var(--color-accent-soft);
+    background: var(--color-surface);
+    border-left: 2px solid var(--color-accent);
+    margin-left: -2px;
+    padding-left: calc(var(--space-3) + 2px);
+}
+
+.navLinkActive .navLinkLabel {
     color: var(--color-text);
     font-weight: var(--fw-semibold);
+}
+
+.navLinkActive .navLinkDescription {
+    color: var(--color-text-muted);
 }
 
 .sidebarFooter {
     padding-top: var(--space-5);
     border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: var(--space-3);
 }
 
 .brandTag {
     font-family: var(--font-mono);
-    font-size: var(--fs-xs);
+    font-size: 0.6875rem;
     color: var(--color-text-subtle);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
 }
+
+.brandVersion {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--color-text-subtle);
+    letter-spacing: 0.05em;
+}
+
+/* ============== MAIN ============== */
 
 .main {
     display: flex;
@@ -98,10 +157,11 @@
 
 .topbar {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    height: var(--topbar-h);
-    padding: 0 var(--space-7);
+    gap: var(--space-5);
+    min-height: var(--topbar-h);
+    padding: var(--space-5) var(--space-7) var(--space-4);
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
     position: sticky;
@@ -112,29 +172,40 @@
 .topbarTitle {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    min-width: 0;
+}
+
+.topbarKicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
 }
 
 .topbarTitle h1 {
     font-family: var(--font-display);
-    font-size: var(--fs-lg);
+    font-size: var(--fs-2xl);
     font-weight: var(--fw-semibold);
-    line-height: 1;
+    line-height: 1.15;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     color: var(--color-text);
 }
 
 .topbarSubtitle {
-    font-size: var(--fs-xs);
-    color: var(--color-text-subtle);
-    letter-spacing: 0.01em;
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+    line-height: 1.4;
 }
 
 .topbarActions {
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    padding-top: var(--space-2);
 }
 
 .content {
@@ -143,6 +214,15 @@
     max-width: var(--content-max);
     width: 100%;
     margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+    .topbar {
+        padding: var(--space-4) var(--space-5);
+    }
+    .content {
+        padding: var(--space-5);
+    }
 }
 
 @media (max-width: 768px) {
@@ -161,6 +241,16 @@
     .nav {
         flex-direction: row;
         flex-wrap: wrap;
+        gap: var(--space-3);
+    }
+
+    .navSection {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .navSectionLabel {
+        display: none;
     }
 
     .sidebarFooter {
@@ -169,5 +259,9 @@
 
     .content {
         padding: var(--space-5);
+    }
+
+    .topbarKicker {
+        display: none;
     }
 }
