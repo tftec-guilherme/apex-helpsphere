@@ -53,6 +53,9 @@ interface AuthSetup {
     // Runtime config (Decisão #19): URL do tickets-service .NET vinda do backend
     // (env TICKETS_BACKEND_URI) em vez de embed no bundle Vite. Build é env-agnóstico.
     ticketsApiBase: string;
+    // Lab Intermediário (Wave 2): backend expõe `enableChat` em /auth_setup lido de
+    // env ENABLE_CHAT. Default false — ativado via Bicep param `enableChat=true`.
+    enableChat?: boolean;
 }
 
 // Fetch the auth setup JSON data from the API if not already cached
@@ -75,6 +78,10 @@ export const enableUnauthenticatedAccess = authSetup.enableUnauthenticatedAccess
 export const requireLogin = requireAccessControl && !enableUnauthenticatedAccess;
 
 export const ticketsApiBase = (authSetup.ticketsApiBase ?? "").replace(/\/+$/, "");
+
+// Backend Wave 2 expõe `enableChat` em /auth_setup (lido de env ENABLE_CHAT).
+// Default false — chat é ativado no Lab Intermediário via Bicep param `enableChat=true`.
+export const enableChat = authSetup.enableChat === true;
 
 /**
  * Configuration object to be passed to MSAL instance on creation.

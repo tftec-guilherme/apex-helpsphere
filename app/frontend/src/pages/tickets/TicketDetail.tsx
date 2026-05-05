@@ -1,27 +1,40 @@
 /**
- * Página `/tickets/:ticketId` — detalhe completo de ticket.
+ * Página `/tickets/:ticketId` — detalhe completo de ticket no layout Apex Executivo.
+ *
+ * Wave 3.I (HelpSphere v2.1.0): redesign 2-colunas (main + sidebar sticky) usando
+ * design tokens (`var(--color-*)`, `var(--space-*)`, `var(--font-*)`) e os
+ * components da Wave 3.I (StatusPill big, SlaCountdown live, CommentTimeline).
  *
  * Production-pattern visível (audiência sênior — Disciplina 06):
- * - Carga unica via GET /api/tickets/{id} (LEFT JOIN no backend evita N+1)
- * - PATCH otimistico-no-refresh (estado local atualizado a partir da resposta)
- * - POST comment com auto-append na thread + reset do input
- * - POST suggest exibe payload didatico do stub (501 esperado)
+ * - Carga única via GET /api/tickets/{id} (LEFT JOIN no backend evita N+1)
+ * - PUT otimistico-no-refresh (estado local atualizado a partir da resposta)
+ * - POST suggest exibe payload didático do stub (501 esperado)
  * - Skeleton, error MessageBar com retry, fallback para 404
+ * - Comments thread populada pelo seed; POST comment continua stub (Lab Intermediário)
  */
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useMsal } from "@azure/msal-react";
-import { Button, Dropdown, MessageBar, MessageBarBody, MessageBarTitle, Option, Skeleton, SkeletonItem, Spinner, Textarea } from "@fluentui/react-components";
-import { ArrowClockwise24Regular, ArrowLeft24Regular, Send24Regular, Sparkle24Regular } from "@fluentui/react-icons";
+import { Button, MessageBar, MessageBarBody, MessageBarTitle, Skeleton, SkeletonItem, Spinner } from "@fluentui/react-components";
+import { ArrowClockwise24Regular, ArrowLeft24Regular, Sparkle24Regular } from "@fluentui/react-icons";
 
 import styles from "./TicketDetail.module.css";
-import { addCommentApi, getTicketApi, patchTicketApi, suggestTicketApi, type TicketDetail as TicketDetailType } from "../../api";
+import { getTicketApi, patchTicketApi, suggestTicketApi } from "../../api";
+import type { TicketDetail as TicketDetailType } from "../../api";
 import { TICKET_STATUSES, type TicketStatus } from "../../api/ticketsModels";
-import { StatusBadge } from "../../components/StatusBadge";
-import { PriorityBadge } from "../../components/PriorityBadge";
+import { StatusPill } from "../../components/StatusPill/StatusPill";
+import { SlaCountdown } from "../../components/SlaCountdown/SlaCountdown";
+import { CommentTimeline } from "../../components/Timeline/CommentTimeline";
 import { useLogin, getToken } from "../../authConfig";
+
+const PRIORITY_LABELS: Record<string, string> = {
+    Critical: "Crítica",
+    High: "Alta",
+    Medium: "Média",
+    Low: "Baixa"
+};
 
 export function Component(): JSX.Element {
     const { ticketId } = useParams<{ ticketId: string }>();
@@ -36,11 +49,7 @@ export function Component(): JSX.Element {
     const [error, setError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
 
-    const [commentDraft, setCommentDraft] = useState("");
-    const [submittingComment, setSubmittingComment] = useState(false);
-    const [commentError, setCommentError] = useState<string | null>(null);
-
-    const [patchingStatus, setPatchingStatus] = useState(false);
+    const [patchingStatus, setPatchingStatus] = useState<TicketStatus | null>(null);
 
     const [suggesting, setSuggesting] = useState(false);
     const [suggestResult, setSuggestResult] = useState<string | null>(null);
@@ -76,27 +85,9 @@ export function Component(): JSX.Element {
         };
     }, [ticketIdNum, ticketIdValid, ticketId, reloadKey, getIdToken]);
 
-    const submitComment = async () => {
-        if (!ticket) return;
-        const trimmed = commentDraft.trim();
-        if (!trimmed) return;
-        setSubmittingComment(true);
-        setCommentError(null);
-        try {
-            const idToken = await getIdToken();
-            const newComment = await addCommentApi(ticket.ticket_id, trimmed, idToken);
-            setTicket(prev => (prev ? { ...prev, comments: [...prev.comments, newComment] } : prev));
-            setCommentDraft("");
-        } catch (e) {
-            setCommentError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setSubmittingComment(false);
-        }
-    };
-
     const patchStatus = async (next: TicketStatus) => {
         if (!ticket || next === ticket.status) return;
-        setPatchingStatus(true);
+        setPatchingStatus(next);
         setError(null);
         try {
             const idToken = await getIdToken();
@@ -105,7 +96,7 @@ export function Component(): JSX.Element {
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
-            setPatchingStatus(false);
+            setPatchingStatus(null);
         }
     };
 
@@ -154,6 +145,9 @@ export function Component(): JSX.Element {
         ? `#${ticket.ticket_id} ${ticket.subject} — ${t("helpsphere.appName")}`
         : `${t("helpsphere.tickets.pageTitle")} — ${t("helpsphere.appName")}`;
 
+    const priorityLabel = ticket ? PRIORITY_LABELS[ticket.priority] || ticket.priority : "";
+    const priorityClass = ticket ? styles[`pri-${ticket.priority.toLowerCase()}`] : "";
+
     return (
         <div className={styles.page}>
             <Helmet>
@@ -182,174 +176,133 @@ export function Component(): JSX.Element {
             {loading && !ticket && <DetailSkeleton />}
 
             {ticket && (
-                <>
-                    <header className={styles.header}>
-                        <div className={styles.headerTop}>
-                            <span className={styles.ticketId}>#{ticket.ticket_id}</span>
-                            <PriorityBadge priority={ticket.priority} />
-                            <StatusBadge status={ticket.status} />
-                        </div>
-                        <h1 className={styles.subject}>{ticket.subject}</h1>
-                    </header>
+                <div className={styles.layout}>
+                    <article className={styles.main}>
+                        <header className={styles.header}>
+                            <div className={styles.headerMeta}>
+                                <span className={styles.id}>#{ticket.ticket_id}</span>
+                                <span className={`${styles.priority} ${priorityClass}`}>{priorityLabel}</span>
+                                <StatusPill status={ticket.status} size="lg" />
+                            </div>
+                        </header>
 
-                    <div className={styles.layoutGrid}>
-                        <div className={styles.mainColumn}>
-                            <section className={styles.card}>
-                                <h2 className={styles.cardTitle}>{t("helpsphere.tickets.detail.description")}</h2>
-                                <p className={styles.descriptionText}>{ticket.description}</p>
-                            </section>
+                        <h2 className={styles.subject}>{ticket.subject}</h2>
+                        <p className={styles.description}>{ticket.description}</p>
 
-                            <section className={styles.card} aria-label={t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}>
-                                <h2 className={styles.cardTitle}>{t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}</h2>
-
-                                {ticket.comments.length === 0 ? (
-                                    <p className={styles.muted}>—</p>
-                                ) : (
-                                    <ul className={styles.commentsList}>
-                                        {ticket.comments.map(c => (
-                                            <li key={c.comment_id} className={styles.comment}>
-                                                <div className={styles.commentMeta}>
-                                                    <span className={styles.commentAuthor}>{c.author}</span>
-                                                    <span className={styles.commentDate}>{formatDateTime(c.created_at)}</span>
-                                                </div>
-                                                <p className={styles.commentContent}>{c.content}</p>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-
-                                {/*
-                                  Story 06.5c.6 — Adicionar comentário desabilitado temporariamente.
-                                  POST /api/tickets/{id}/comments será implementado no Lab Intermediário
-                                  (junto com sugestão de resposta via RAG). A thread acima continua
-                                  populada pelos comments do seed. Ver DECISION-LOG.md #16.
-                                 */}
-                                <MessageBar intent="info" className={styles.commentForm}>
-                                    <MessageBarBody>
-                                        <MessageBarTitle>Adicionar comentário — Lab Intermediário</MessageBarTitle>
-                                        Esta funcionalidade será habilitada quando você acoplar o pipeline RAG no Lab Intermediário (junto com sugestão de
-                                        resposta automática via IA). A thread acima exibe os comentários do seed.
-                                    </MessageBarBody>
-                                </MessageBar>
-                                <form
-                                    className={styles.commentForm}
-                                    onSubmit={e => {
-                                        e.preventDefault();
-                                        void submitComment();
-                                    }}
-                                    style={{ display: "none" }}
-                                >
-                                    <Textarea
-                                        placeholder={t("helpsphere.tickets.detail.commentPlaceholder")}
-                                        value={commentDraft}
-                                        onChange={(_, d) => setCommentDraft(d.value)}
-                                        rows={3}
-                                        disabled={submittingComment}
-                                        className={styles.commentInput}
-                                    />
-                                    {commentError && (
-                                        <span className={styles.inlineError} role="alert">
-                                            {commentError}
-                                        </span>
-                                    )}
-                                    <div className={styles.commentSubmitRow}>
-                                        <Button
-                                            appearance="primary"
-                                            type="submit"
-                                            icon={<Send24Regular />}
-                                            disabled={!commentDraft.trim() || submittingComment}
+                        <section className={styles.statusActions} aria-label={t("helpsphere.tickets.detail.patchStatus")}>
+                            <h3 className={styles.sectionTitle}>{t("helpsphere.tickets.detail.patchStatus")}</h3>
+                            <div className={styles.statusButtons}>
+                                {TICKET_STATUSES.map(s => {
+                                    const isActive = ticket.status === s;
+                                    const isPending = patchingStatus === s;
+                                    return (
+                                        <button
+                                            key={s}
+                                            type="button"
+                                            className={`${styles.statusBtn} ${isActive ? styles.statusBtnActive : ""}`}
+                                            onClick={() => void patchStatus(s)}
+                                            disabled={isActive || patchingStatus !== null}
+                                            aria-pressed={isActive}
                                         >
-                                            {submittingComment ? t("helpsphere.tickets.detail.submitting") : t("helpsphere.tickets.detail.submit")}
-                                        </Button>
-                                    </div>
-                                </form>
-                            </section>
+                                            {isPending && <Spinner size="tiny" className={styles.btnSpinner} />}
+                                            <span>{t(`helpsphere.tickets.status.${s}`, { defaultValue: s })}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </section>
+
+                        <section className={styles.commentsSection}>
+                            <h3 className={styles.sectionTitle}>
+                                {t("helpsphere.tickets.detail.comments", { count: ticket.comments.length })}
+                            </h3>
+                            <CommentTimeline comments={ticket.comments} locale={localeTag} />
+                            {/*
+                              Story 06.5c.6 — Adicionar comentário desabilitado temporariamente.
+                              POST /api/tickets/{id}/comments será implementado no Lab Intermediário
+                              (junto com sugestão de resposta via RAG). Ver DECISION-LOG.md #16.
+                            */}
+                            <MessageBar intent="info" className={styles.commentNotice}>
+                                <MessageBarBody>
+                                    <MessageBarTitle>Adicionar comentário — Lab Intermediário</MessageBarTitle>
+                                    Esta funcionalidade será habilitada quando você acoplar o pipeline RAG no Lab Intermediário (junto com sugestão
+                                    de resposta automática via IA). A thread acima exibe os comentários do seed.
+                                </MessageBarBody>
+                            </MessageBar>
+                        </section>
+                    </article>
+
+                    <aside className={styles.sidebar}>
+                        <div className={styles.card}>
+                            <h4 className={styles.cardTitle}>{t("helpsphere.tickets.detail.description")}</h4>
+                            <dl className={styles.dl}>
+                                <dt>{t("helpsphere.tickets.columns.tenant")}</dt>
+                                <dd className={styles.tenantValue} title={ticket.tenant_id}>
+                                    {ticket.tenant_id.slice(0, 8)}…
+                                </dd>
+
+                                <dt>{t("helpsphere.tickets.columns.category")}</dt>
+                                <dd>{t(`helpsphere.tickets.category.${ticket.category}`, { defaultValue: ticket.category })}</dd>
+
+                                <dt>{t("helpsphere.tickets.detail.language")}</dt>
+                                <dd>{ticket.language}</dd>
+
+                                <dt>{t("helpsphere.tickets.detail.createdAt")}</dt>
+                                <dd>{formatDateTime(ticket.created_at)}</dd>
+
+                                <dt>{t("helpsphere.tickets.detail.updatedAt")}</dt>
+                                <dd>{formatDateTime(ticket.updated_at)}</dd>
+
+                                <dt>{t("helpsphere.tickets.detail.confidence")}</dt>
+                                <dd>
+                                    {ticket.confidence_score === null ? (
+                                        <span className={styles.muted}>{t("helpsphere.tickets.detail.noConfidence")}</span>
+                                    ) : (
+                                        <ConfidenceBar value={ticket.confidence_score} />
+                                    )}
+                                </dd>
+
+                                <dt>{t("helpsphere.tickets.detail.attachments")}</dt>
+                                <dd>
+                                    {attachments.length === 0 ? (
+                                        <span className={styles.muted}>{t("helpsphere.tickets.detail.noAttachments")}</span>
+                                    ) : (
+                                        <ul className={styles.attachmentsList}>
+                                            {attachments.map(path => (
+                                                <li key={path} className={styles.attachment}>
+                                                    {path.split("/").pop() || path}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </dd>
+                            </dl>
                         </div>
 
-                        <aside className={styles.sideColumn}>
-                            <section className={styles.card}>
-                                <h2 className={styles.cardTitle}>{t("helpsphere.tickets.columns.subject")}</h2>
-                                <dl className={styles.metaList}>
-                                    <dt>{t("helpsphere.tickets.columns.tenant")}</dt>
-                                    <dd className={styles.tenantValue} title={ticket.tenant_id}>
-                                        {ticket.tenant_id.slice(0, 8)}…
-                                    </dd>
+                        <div className={styles.card}>
+                            <h4 className={styles.cardTitle}>SLA</h4>
+                            <SlaCountdown createdAt={ticket.created_at} priority={ticket.priority} status={ticket.status} />
+                        </div>
 
-                                    <dt>{t("helpsphere.tickets.columns.category")}</dt>
-                                    <dd>{t(`helpsphere.tickets.category.${ticket.category}`)}</dd>
-
-                                    <dt>{t("helpsphere.tickets.detail.language")}</dt>
-                                    <dd>{ticket.language}</dd>
-
-                                    <dt>{t("helpsphere.tickets.detail.createdAt")}</dt>
-                                    <dd>{formatDateTime(ticket.created_at)}</dd>
-
-                                    <dt>{t("helpsphere.tickets.detail.updatedAt")}</dt>
-                                    <dd>{formatDateTime(ticket.updated_at)}</dd>
-
-                                    <dt>{t("helpsphere.tickets.detail.confidence")}</dt>
-                                    <dd>
-                                        {ticket.confidence_score === null ? (
-                                            <span className={styles.muted}>{t("helpsphere.tickets.detail.noConfidence")}</span>
-                                        ) : (
-                                            <ConfidenceBar value={ticket.confidence_score} />
-                                        )}
-                                    </dd>
-
-                                    <dt>{t("helpsphere.tickets.detail.attachments")}</dt>
-                                    <dd>
-                                        {attachments.length === 0 ? (
-                                            <span className={styles.muted}>{t("helpsphere.tickets.detail.noAttachments")}</span>
-                                        ) : (
-                                            <ul className={styles.attachmentsList}>
-                                                {attachments.map(path => (
-                                                    <li key={path} className={styles.attachment}>
-                                                        {path.split("/").pop() || path}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </dd>
-                                </dl>
-                            </section>
-
-                            <section className={styles.card}>
-                                <h2 className={styles.cardTitle}>{t("helpsphere.tickets.detail.patchStatus")}</h2>
-                                <Dropdown
-                                    value={t(`helpsphere.tickets.status.${ticket.status}`)}
-                                    selectedOptions={[ticket.status]}
-                                    onOptionSelect={(_, d) => {
-                                        if (d.optionValue) void patchStatus(d.optionValue as TicketStatus);
-                                    }}
-                                    disabled={patchingStatus}
-                                    className={styles.statusDropdown}
-                                >
-                                    {TICKET_STATUSES.map(s => (
-                                        <Option key={s} value={s}>
-                                            {t(`helpsphere.tickets.status.${s}`)}
-                                        </Option>
-                                    ))}
-                                </Dropdown>
-
-                                <Button
-                                    appearance="primary"
-                                    icon={suggesting ? <Spinner size="tiny" /> : <Sparkle24Regular />}
-                                    onClick={() => void callSuggest()}
-                                    disabled={suggesting}
-                                    className={styles.suggestButton}
-                                >
-                                    {t("helpsphere.tickets.detail.suggest")}
-                                </Button>
-
-                                {suggestResult && (
-                                    <MessageBar intent="info" className={styles.suggestResult}>
-                                        <MessageBarBody>{suggestResult}</MessageBarBody>
-                                    </MessageBar>
-                                )}
-                            </section>
-                        </aside>
-                    </div>
-                </>
+                        <div className={styles.card}>
+                            <h4 className={styles.cardTitle}>{t("helpsphere.tickets.detail.suggest")}</h4>
+                            <Button
+                                appearance="primary"
+                                icon={suggesting ? <Spinner size="tiny" /> : <Sparkle24Regular />}
+                                onClick={() => void callSuggest()}
+                                disabled={suggesting}
+                                className={styles.suggestButton}
+                            >
+                                {t("helpsphere.tickets.detail.suggest")}
+                            </Button>
+                            {suggestResult && (
+                                <MessageBar intent="info" className={styles.suggestResult}>
+                                    <MessageBarBody>{suggestResult}</MessageBarBody>
+                                </MessageBar>
+                            )}
+                        </div>
+                    </aside>
+                </div>
             )}
         </div>
     );

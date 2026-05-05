@@ -1,7 +1,9 @@
 // Story 06.5c.2 T2.1 — ITicketsRepository
 // 5 métodos cobrindo os 5 endpoints REST.
+// Wave 3.E (v2.1.0) — +1 método GetStatsAsync para Dashboard.
 // Tenant_id sempre passado como param (server-side, nunca do payload).
 
+using TicketsService.Domain.Models;
 using TicketsService.Domain.Tickets;
 using TicketsService.Domain.Tickets.Enums;
 using TicketsService.Domain.Common;
@@ -48,4 +50,11 @@ public interface ITicketsRepository
         string author,
         Guid tenantId,
         CancellationToken ct);
+
+    /// <summary>
+    /// Wave 3.E (v2.1.0) — Aggregations para Dashboard.
+    /// Single tenant-scoped multi-result query. SQL Server T-SQL flavor (production).
+    /// Defesa: WHERE tenant_id = @TenantId em TODAS as queries.
+    /// </summary>
+    Task<TicketStats> GetStatsAsync(Guid tenantId, CancellationToken ct);
 }

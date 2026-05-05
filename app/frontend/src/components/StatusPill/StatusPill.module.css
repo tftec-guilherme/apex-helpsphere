@@ -1,0 +1,91 @@
+/* StatusPill — Wave 3.I */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body);
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.01em;
+    line-height: 1;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+/* Sizes */
+.size-sm {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-3);
+}
+
+.size-md {
+    font-size: var(--fs-sm);
+    padding: var(--space-2) var(--space-3);
+}
+
+.size-md .dot {
+    width: 7px;
+    height: 7px;
+}
+
+.size-lg {
+    font-size: var(--fs-base);
+    padding: var(--space-2) var(--space-4);
+}
+
+.size-lg .dot {
+    width: 8px;
+    height: 8px;
+}
+
+/* Variants — domínio HelpSphere */
+.pill-open {
+    color: var(--status-open);
+    background: var(--color-success-soft);
+    border-color: rgba(26, 127, 55, 0.18);
+}
+
+.pill-inprogress {
+    color: var(--status-inprogress);
+    background: rgba(9, 105, 218, 0.1);
+    border-color: rgba(9, 105, 218, 0.18);
+}
+
+.pill-resolved {
+    color: var(--color-success);
+    background: var(--color-success-soft);
+    border-color: rgba(26, 127, 55, 0.2);
+}
+
+.pill-escalated {
+    color: var(--color-danger);
+    background: var(--color-danger-soft);
+    border-color: rgba(207, 34, 46, 0.22);
+}
+
+/* Variants — extensões futuras */
+.pill-blocked {
+    color: var(--status-blocked);
+    background: var(--color-danger-soft);
+    border-color: rgba(207, 34, 46, 0.22);
+}
+
+.pill-closed {
+    color: var(--status-closed);
+    background: rgba(110, 119, 129, 0.14);
+    border-color: rgba(110, 119, 129, 0.22);
+}
+
+.pill-default {
+    color: var(--color-text-muted);
+    background: rgba(91, 100, 120, 0.1);
+    border-color: rgba(91, 100, 120, 0.18);
+}
