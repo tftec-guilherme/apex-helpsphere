@@ -677,6 +677,12 @@ module acaBackend 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
     env: union(appEnvVariables, {
       // For using managed identity to access Azure resources. See https://github.com/microsoft/azure-container-apps/issues/442
       AZURE_CLIENT_ID: (deploymentTarget == 'containerapps') ? acaIdentity!.outputs.clientId : ''
+      // Story 06.5c.8 (Sessão 9.2): TICKETS_BACKEND_URI consumido por blueprints/tickets.py
+      // para popular o header `Link: <successor-uri>; rel="successor-version"` (RFC 8288)
+      // nos responses 410 Gone (AC-5 do epic 06.5c). Sem isso, Link header é omitido e o
+      // body retorna `successor_uri: null` — viola RFC 5988/8288 e atrapalha auto-discovery
+      // do tickets-service .NET pelos clientes legacy.
+      TICKETS_BACKEND_URI: (deploymentTarget == 'containerapps') ? acaTickets!.outputs.uri : ''
     })
     secrets: useAuthentication ? {
       azureclientappsecret: clientAppSecret
