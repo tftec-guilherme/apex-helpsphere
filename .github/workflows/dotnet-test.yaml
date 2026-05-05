@@ -34,9 +34,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-          # .NET 10 ainda pode estar em preview no momento — habilita pré-releases
-          # (no-op se já é GA). Ref: https://github.com/actions/setup-dotnet#supported-version-syntax
-          include-prerelease: true
+          # dotnet-quality: 'preview' seria necessário se .NET 10 ainda em preview;
+          # validado como GA em CI run 25351005663 sem flag adicional.
 
       - name: Print .NET version
         run: dotnet --info
