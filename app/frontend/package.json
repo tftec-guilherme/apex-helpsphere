@@ -16,7 +16,7 @@
     "@azure/msal-browser": "^4.16.0",
     "@azure/msal-react": "^3.0.16",
     "@fluentui/react-components": "^9.73.3",
-    "@fluentui/react-icons": "^2.0.319",
+    "@fluentui/react-icons": "^2.0.325",
     "@fluentui/react-table": "^9.19.14",
     "@fontsource-variable/inter-tight": "^5.2.7",
     "@fontsource/fraunces": "^5.2.9",
