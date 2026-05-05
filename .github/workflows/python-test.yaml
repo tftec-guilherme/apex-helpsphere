@@ -51,6 +51,16 @@ jobs:
             npm run build
         - name: Check i18n translations
           run: npx -y @lingual/i18n-check@0.8.12 --locales app/frontend/src/locales -s en -f i18next -r summary
+        # HelpSphere — Sessao 9.2 cont: pyodbc 5.2.0 nao tem wheel cp314 publicado
+        # ainda. Em Python 3.14 ubuntu, uv pip install tenta compilar source ->
+        # falha em sql.h sem unixodbc-dev. Fix: garantir headers ODBC + driver.
+        # Linux runners: instalar via apt. Windows runners: msodbcsql18 ja vem
+        # pre-instalado via Visual Studio Build Tools no GitHub Actions image.
+        - name: Install ODBC dev headers (Linux only — pyodbc source compile)
+          if: runner.os == 'Linux'
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends unixodbc-dev
         - name: Install dependencies
           run: |
             uv pip install -r requirements-dev.txt
