@@ -1,0 +1,30 @@
+# HelpSphere — pre-commit hooks (Sessao 9.2 cont · cravado pos-regressao)
+#
+# Roda ruff + black localmente ANTES de cada commit, evitando que codigo
+# unformatted/unlinted chegue ao CI (Python check workflow). Cravado apos
+# 2 regressoes consecutivas (commits e5332c9 + a402226) onde o autor nao
+# rodou validacoes locais antes do push.
+#
+# Setup (uma vez por dev):
+#   pip install --user pre-commit
+#   pre-commit install
+#
+# Bypass (NAO recomendado — use apenas em emergencia documentada):
+#   git commit --no-verify
+#
+# Manualmente rodar em todos os files:
+#   pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        language_version: python3
