@@ -263,18 +263,22 @@ async def patch_server_app_features(
     """
     print(f"[patch_server_app_features] Applying server app features → {server_app_id}")
 
-    # GET current state to decide if we need to include scopes in the patch
+    # GET current state to decide if we need to include scopes in the patch.
+    # Match por VALUE (não ID) — sessões anteriores podem ter criado o scope
+    # com UUIDs diferentes do determinístico ACCESS_AS_USER_SCOPE_ID. O que
+    # importa para idempotência é existir um scope com value="access_as_user"
+    # enabled — qualquer UUID válido serve, e re-PATCH com UUID diferente é
+    # rejeitado por Microsoft Graph (CannotDeleteOrUpdateEnabledEntitlement).
     existing = await graph_client.applications.by_application_id(server_object_id).get()
     scope_already_correct = False
     if existing and existing.api and existing.api.oauth2_permission_scopes:
         for scope in existing.api.oauth2_permission_scopes:
-            if (
-                str(scope.id) == str(ACCESS_AS_USER_SCOPE_ID)
-                and scope.value == SCOPE_NAME
-                and scope.is_enabled is True
-            ):
+            if scope.value == SCOPE_NAME and scope.is_enabled is True:
                 scope_already_correct = True
-                print("[patch_server_app_features] Scope access_as_user already correct → skipping scope patch")
+                print(
+                    f"[patch_server_app_features] Scope access_as_user already exists enabled "
+                    f"(id={scope.id}) → skipping scope patch"
+                )
                 break
 
     if scope_already_correct:
