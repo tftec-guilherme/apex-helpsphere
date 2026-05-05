@@ -143,7 +143,7 @@ async def patch_ticket(ticket_id: int):
 
 @tickets_bp.post("/api/tickets/<int:ticket_id>/suggest")
 @authenticated
-async def suggest_response(ticket_id: int, auth_claims: dict[str, Any]):
+async def suggest_response(auth_claims: dict[str, Any], ticket_id: int):
     """Stub explícito — Lab Intermediário implementa o pipeline RAG completo.
 
     Retorna 501 Not Implemented + payload didático identificando o ponto
@@ -151,6 +151,12 @@ async def suggest_response(ticket_id: int, auth_claims: dict[str, Any]):
     da Sessão 3 já possa chamar.
 
     PRESERVADO em 06.5c.7 (D3): RAG é Python territory, NÃO migra para .NET.
+
+    Sessao 9.2 cont (TD-7 fix): auth_claims DEVE vir antes de ticket_id na
+    assinatura. Decorator @authenticated faz `route_fn(auth_claims, *args,
+    **kwargs)` — auth_claims sempre 1o positional. Quart passa ticket_id via
+    `**view_args` (kwargs). Inverter ordem causa "TypeError: got multiple
+    values for argument 'ticket_id'" → HTTP 500 em vez do 501 esperado.
     """
     _ = _resolve_tenant_id(auth_claims)  # valida tenant mesmo no stub (multi-tenant safe by default)
     return (

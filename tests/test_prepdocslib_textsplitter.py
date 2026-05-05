@@ -40,6 +40,14 @@ def test_sentencetextsplitter_split_small_pages():
     assert chunks[0].text == "Not a large page"
 
 
+# HelpSphere — Sessao 9.2 cont (TD-7 cleanup): teste do upstream MS depende de
+# PDFs em data/*.pdf que NAO foram vendorados (vide CHANGES.md L51 — KB Apex
+# usa 62 PDFs proprietarios em pasta separada via prepdocs.sh, nao em data/).
+# Skip explicito quando data/ nao tem PDFs evita falsa sensacao de regressao.
+@pytest.mark.skipif(
+    not list(Path("data").glob("*.pdf")),
+    reason="Sem PDFs em data/ — fixture do upstream MS removida no fork HelpSphere (CHANGES.md)",
+)
 @pytest.mark.asyncio
 async def test_sentencetextsplitter_list_parse_and_split(tmp_path, snapshot):
     text_splitter = SentenceTextSplitter()
