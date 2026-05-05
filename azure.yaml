@@ -45,16 +45,15 @@ services:
           interactive: false
           continueOnError: false
       # This hook is called when Azure Container Apps is the host.
-      # Story 06.5c.6 (Decisão #16): injeta VITE_API_TICKETS_URL pegando o output
-      # `TICKETS_BACKEND_URI` do azd env (escrito pelo Bicep durante provision).
-      # Build-time substitution = padrão Vite. Sem env var setada, frontend fallback
-      # para mesmo origin (Python backend retorna 410 Gone — comportamento detectável).
+      # Decisão #19 (runtime config): a URL do tickets-service é exposta pelo backend
+      # via `/auth_setup.ticketsApiBase` (lendo env `TICKETS_BACKEND_URI`), então o build
+      # do frontend é environment-agnóstico — o mesmo bundle serve dev/staging/prod.
+      # Removida a injeção build-time de `VITE_API_TICKETS_URL` (eliminava pegadinha
+      # "tickets retornam 410 Gone" quando aluno esquecia de exportar a env antes do build).
       prebuild:
         windows:
           shell: pwsh
           run: |
-            $env:VITE_API_TICKETS_URL = (azd env get-value TICKETS_BACKEND_URI 2>$null)
-            if (-not $env:VITE_API_TICKETS_URL) { Write-Host "[06.5c.6] VITE_API_TICKETS_URL nao setado - frontend usara mesmo origin" }
             cd ../frontend
             npm install
             npm run build
@@ -63,8 +62,6 @@ services:
         posix:
           shell: sh
           run: |
-            export VITE_API_TICKETS_URL="$(azd env get-value TICKETS_BACKEND_URI 2>/dev/null || echo '')"
-            if [ -z "$VITE_API_TICKETS_URL" ]; then echo "[06.5c.6] VITE_API_TICKETS_URL nao setado - frontend usara mesmo origin"; fi
             cd ../frontend
             npm install
             npm run build
@@ -138,14 +135,27 @@ hooks:
       # do hook postprovision (após auth_update + prepdocs do template upstream).
       # sql_init.* cria USER FROM EXTERNAL PROVIDER para a backend MI, concede
       # db_datareader + db_datawriter, executa migrations e (opcionalmente) seeds.
+      #
+      # HelpSphere — Story 06.5c.9 Sessão 9.5 (Decisão #21) adiciona
+      # setup_search_index.{ps1,sh} ANTES de prepdocs. Cria gptkbindex (schema
+      # mínimo: id/content/sourcepage/oids/groups) idempotentemente — garante
+      # que backend Python suba mesmo se prepdocs.py falhar/skipar (template
+      # vem sem PDFs em ./data/, então prepdocs sai cedo). prepdocs sobrescreve
+      # com schema completo quando aluno popular ./data/ no Lab Intermediário.
+      #
+      # HelpSphere v2.1.0 (Sessão 9.5, Decisão #22) — `prepdocs.{ps1,sh}` foi
+      # encapsulado em `run_prepdocs.{ps1,sh}` que respeita o param Bicep
+      # `skipPrepdocs` (env var SKIP_PREPDOCS). prepdocs original NÃO foi
+      # modificado para preservar facilidade de merge upstream com
+      # Azure-Samples/azure-search-openai-demo.
       windows:
         shell: pwsh
-        run: ./scripts/auth_update.ps1;./scripts/prepdocs.ps1;./scripts/sql_init.ps1
+        run: ./scripts/auth_update.ps1;./scripts/setup_search_index.ps1;./scripts/run_prepdocs.ps1;./scripts/sql_init.ps1
         interactive: true
         continueOnError: false
       posix:
         shell: sh
-        run: ./scripts/auth_update.sh;./scripts/prepdocs.sh;./scripts/sql_init.sh
+        run: ./scripts/auth_update.sh;./scripts/setup_search_index.sh;./scripts/run_prepdocs.sh;./scripts/sql_init.sh
         interactive: true
         continueOnError: false
     postdeploy:

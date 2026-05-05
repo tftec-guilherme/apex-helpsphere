@@ -17,6 +17,7 @@ using System.Text.Json;
 using Dapper;
 using TicketsService.Domain.Comments;
 using TicketsService.Domain.Common;
+using TicketsService.Domain.Models;
 using TicketsService.Domain.Tenants;
 using TicketsService.Domain.Tickets;
 using TicketsService.Domain.Tickets.Enums;
@@ -275,6 +276,111 @@ public sealed class TicketsRepository(
         return await GetByIdAsync(id, tenantId, ct);
     }
 
+    public async Task<TicketStats> GetStatsAsync(Guid tenantId, CancellationToken ct)
+    {
+        // Wave 3.E (v2.1.0) — Aggregations Dashboard.
+        //
+        // Single round-trip: 5 selects via QueryMultipleAsync.
+        //   1. Totals (TotalOpen, CriticalOpen, Last24h, SlaBreachPct)
+        //   2. ByStatus
+        //   3. ByCategory
+        //   4. ByPriority
+        //   5. DailyVolume7d
+        //
+        // SLA budget hardcoded por priority (v2.1.0):
+        //   Critical=4h, High=24h, Medium=72h, Low=168h.
+        //
+        // Defesa em profundidade: WHERE tenant_id = @TenantId em TODAS queries
+        // (Decisão #16 — auditável via grep).
+        //
+        // SQL Server T-SQL flavor (production target). Tests SQLite skipped — esse
+        // endpoint é validado por smoke E2E pós-deploy.
+        const string sql = @"
+-- 1. Totals (open count, critical, 24h, SLA breach %)
+SELECT
+    COUNT(CASE WHEN status IN ('Open','InProgress') THEN 1 END) AS TotalOpen,
+    COUNT(CASE WHEN priority = 'Critical' AND status <> 'Resolved' THEN 1 END) AS CriticalOpen,
+    COUNT(CASE WHEN created_at > DATEADD(HOUR, -24, GETUTCDATE()) THEN 1 END) AS Last24h,
+    CAST(
+        COALESCE(
+            100.0 * COUNT(CASE
+                WHEN status IN ('Open','InProgress') AND
+                     DATEDIFF(HOUR, created_at, GETUTCDATE()) >
+                        CASE priority
+                            WHEN 'Critical' THEN 4
+                            WHEN 'High' THEN 24
+                            WHEN 'Medium' THEN 72
+                            ELSE 168
+                        END
+                THEN 1
+            END) /
+            NULLIF(COUNT(CASE WHEN status IN ('Open','InProgress') THEN 1 END), 0),
+            0
+        )
+    AS DECIMAL(5,2)) AS SlaBreachPct
+FROM tbl_tickets
+WHERE tenant_id = @tenantId;
+
+-- 2. By status
+SELECT status AS Status, COUNT(*) AS Count
+FROM tbl_tickets
+WHERE tenant_id = @tenantId
+GROUP BY status
+ORDER BY Count DESC;
+
+-- 3. By category
+SELECT category AS Category, COUNT(*) AS Count
+FROM tbl_tickets
+WHERE tenant_id = @tenantId
+GROUP BY category
+ORDER BY Count DESC;
+
+-- 4. By priority (canonical order)
+SELECT priority AS Priority, COUNT(*) AS Count
+FROM tbl_tickets
+WHERE tenant_id = @tenantId
+GROUP BY priority
+ORDER BY
+    CASE priority
+        WHEN 'Critical' THEN 1
+        WHEN 'High' THEN 2
+        WHEN 'Medium' THEN 3
+        ELSE 4
+    END;
+
+-- 5. Daily volume last 7 days (ISO date YYYY-MM-DD via CONVERT style 23)
+SELECT
+    CONVERT(VARCHAR(10), CAST(created_at AS DATE), 23) AS [Date],
+    COUNT(*) AS Count
+FROM tbl_tickets
+WHERE tenant_id = @tenantId
+  AND created_at > DATEADD(DAY, -7, GETUTCDATE())
+GROUP BY CAST(created_at AS DATE)
+ORDER BY [Date];
+";
+
+        await using var conn = await connectionFactory.CreateOpenConnectionAsync(ct);
+        await using var multi = await conn.QueryMultipleAsync(
+            new CommandDefinition(sql, new { tenantId },
+                commandTimeout: CommandTimeoutSeconds, cancellationToken: ct));
+
+        var totalsRow = await multi.ReadSingleAsync<TotalsRow>();
+        var byStatus = (await multi.ReadAsync<StatusCount>()).AsList();
+        var byCategory = (await multi.ReadAsync<CategoryCount>()).AsList();
+        var byPriority = (await multi.ReadAsync<PriorityCount>()).AsList();
+        var dailyVolume = (await multi.ReadAsync<DailyVolume>()).AsList();
+
+        return new TicketStats(
+            TotalOpen: totalsRow.TotalOpen,
+            SlaBreachPct: totalsRow.SlaBreachPct,
+            CriticalOpen: totalsRow.CriticalOpen,
+            Last24h: totalsRow.Last24h,
+            ByStatus: byStatus,
+            ByCategory: byCategory,
+            ByPriority: byPriority,
+            DailyVolume7d: dailyVolume);
+    }
+
     // ---------------------------------------------------------------------
     // Internal mapping (snake_case rows → domain records)
     // ---------------------------------------------------------------------
@@ -428,6 +534,15 @@ public sealed class TicketsRepository(
         public Guid Te_TenantId { get; set; }
         public string Te_BrandName { get; set; } = "";
         public DateTime Te_CreatedAt { get; set; }
+    }
+
+    // Wave 3.E — totals row (PascalCase aliases match SELECT ... AS PascalCase output)
+    private sealed class TotalsRow
+    {
+        public int TotalOpen { get; set; }
+        public int CriticalOpen { get; set; }
+        public int Last24h { get; set; }
+        public decimal SlaBreachPct { get; set; }
     }
 #pragma warning restore IDE1006, CA1819, CA1812
 }

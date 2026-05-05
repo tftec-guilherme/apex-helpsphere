@@ -829,6 +829,352 @@ E aceitar que a primeira request após 1h de inatividade vai levar 30-60s (cold-
 
 ---
 
+## Decisão #19 — Runtime config via `/auth_setup.ticketsApiBase` (Sessão 9.4)
+
+> **Status:** CRAVADA · Forma: backend `/auth_setup` expõe `ticketsApiBase` em runtime; frontend `authConfig.ts` usa top-level await no boot; build-time `VITE_API_TICKETS_URL` removido do `azure.yaml`
+
+### Contexto
+
+A Story 06.5c.6 introduziu `VITE_API_TICKETS_URL` como **build-time injection** — env var lida durante `npm run build` e fixada no bundle JS final. Sessão 9.4 (primeiro login E2E real do prof no laptop) descobriu que o aluno esquece de exportar a env var antes de `npm run build` → bundle ships com path relativo `/api/tickets` → backend Python responde **HTTP 410 Gone** (deprecação cravada na Decisão #16) e o frontend mostra erro genérico difícil de correlacionar com missing env var.
+
+Diagnosticar isso requer: abrir DevTools, verificar Network tab, ver que request foi para origin errado, inferir que VITE_API_TICKETS_URL não foi setado no build. Etapa pedagógica caríssima para quem está vendo o template pela primeira vez.
+
+### Decisão
+
+**Backend Python expõe `ticketsApiBase` em runtime** via endpoint `/auth_setup` (lendo de env `TICKETS_BACKEND_URI`, setada pelo Bicep como output do tickets-service Container App).
+
+**Frontend `authConfig.ts`** lê do `/auth_setup` no boot via top-level await (mesmo pattern já usado pelo template MS para configurar MSAL).
+
+**Mesmo bundle JS** serve qualquer environment — dev local, fork do aluno, fork de outro aluno, branch de feature, todos descobrem o tickets URL em runtime.
+
+```python
+# app/backend/app.py — /auth_setup handler
+return {
+    "useLogin": auth_helper.use_authentication,
+    "requireAccessControl": ...,
+    "msalConfig": {...},
+    "loginRequest": {...},
+    "tokenRequest": {...},
+    "ticketsApiBase": os.environ.get("TICKETS_BACKEND_URI", ""),  # NEW
+    "enableChat": os.environ.get("ENABLE_CHAT", "false").lower() == "true",  # NEW (Decisão #23)
+}
+```
+
+```ts
+// app/frontend/src/authConfig.ts (top of file)
+const authSetup = await fetch("/auth_setup").then(r => r.json());
+export const ticketsApiBase: string = authSetup.ticketsApiBase || "";
+export const enableChat: boolean = authSetup.enableChat === true;
+```
+
+### Alternativas avaliadas
+
+| Alternativa | Veredicto |
+|---|---|
+| Manter build-time injection + melhorar docs (PARA-O-ALUNO + comment no `azure.yaml`) | ❌ Rejeitada — aluno continua bater. Documentação não substitui defaults seguros. |
+| Service worker / `window.__CONFIG__` injetado por backend HTML template | ❌ Rejeitada — overengineering. MSAL.js já faz top-level await em `/auth_setup`, reaproveitamos a infra. |
+| Backend Python proxy reverso `/api/tickets/*` → tickets-service (transparent proxy) | ❌ Rejeitada — refactor pesado, perde decoupling Python↔.NET, viola Decisão #16 (separação clara dos 2 microservices) |
+
+### Anti-padrões rejeitados
+
+❌ **Environment-coupling em build artifact** — bundle JS deve ser environment-agnostic. Onde foi buildado ≠ onde será deployado.
+❌ **Falha silenciosa em UX crítico** — request com origin errado → 410 Gone genérico → debug humano caríssimo.
+
+### Files alterados
+
+- `app/backend/app.py` — `/auth_setup` ganha `ticketsApiBase` + `enableChat`
+- `app/frontend/src/authConfig.ts` — top-level await + named exports `ticketsApiBase`, `enableChat`
+- `app/frontend/src/api/tickets.ts` — usa `ticketsApiBase` import (não mais `import.meta.env.VITE_API_TICKETS_URL`)
+- `azure.yaml` — remove hook `prebuild` que setava `VITE_API_TICKETS_URL`
+
+---
+
+## Decisão #20 — Audience GUID puro (v2) no Bicep do tickets-service (Sessão 9.4)
+
+> **Status:** CRAVADA · Forma: param Bicep `tokenAudienceFormat` (default `v2`); tickets-service Container App env `AzureAd__Audience = serverAppId` (GUID puro, sem `api://` prefix)
+
+### Contexto
+
+Bicep do template upstream (`azure-search-openai-demo`) seta `AzureAd__Audience: api://${clientAppId}` (linha 763-764 do `main.bicep` original). Two-app pattern (Decisão Q1B + Sessão 9.4) emite tokens com `aud=api://${serverAppId}` (correto, server-app é o resource owner). Mismatch causa `IDX10214: Audience validation failed: ... did not match: validationParameters.ValidAudience` na primeira chamada autenticada do frontend ao tickets-service.
+
+Adicionalmente, em token v2 com `accessTokenAcceptedVersion=2` (cravado em `auth_init.py` Sessão 9.4), audience é emitida como **GUID puro** (`${serverAppId}` sem `api://` prefix). Esse é o formato canônico do Microsoft Identity Platform v2 — `api://` é legado v1.
+
+### Decisão
+
+**`AzureAd__Audience` no Bicep do tickets-service usa `serverAppId` (GUID puro, v2 native) por default.**
+
+```bicep
+// infra/main.bicep — tickets-service Container App
+@allowed(['v1', 'v2', 'both'])
+param tokenAudienceFormat string = 'v2'
+
+var audienceValue = tokenAudienceFormat == 'v1'
+  ? 'api://${serverAppId}'
+  : tokenAudienceFormat == 'both'
+    ? 'api://${serverAppId},${serverAppId}'  // CSV, .NET aceita lista
+    : serverAppId  // v2 default
+
+// env vars do tickets-service Container App
+{
+  name: 'AzureAd__Audience'
+  value: audienceValue
+}
+```
+
+Param `tokenAudienceFormat` permite override em fluxos de migração (legacy clients ainda emitindo v1 tokens) sem quebrar a defesa arquitetural canônica.
+
+### Alternativas avaliadas
+
+| Alternativa | Veredicto |
+|---|---|
+| `api://${serverAppId}` (v1 prefix) por default | ❌ Rejeitada — força token v1 que não suporta Directory Extensions em **access tokens** (v1 só suporta extension em ID tokens, e tickets-service valida access token). |
+| Lista CSV `api://${serverAppId},${serverAppId}` por default | ❌ Rejeitada — aceito como param `both` opcional, NÃO default. Dilui a mensagem arquitetural ("audience é GUID puro v2"). Override consciente, não default obscuro. |
+
+### Anti-padrões rejeitados
+
+❌ **Audience hardcoded** sem param — bloqueia migração futura.
+❌ **Audience misalignment frontend↔backend** — frontend pede token para audience X, backend valida audience Y, falha silenciosa de auth.
+
+### Files alterados
+
+- `infra/main.bicep` — param `tokenAudienceFormat` + `audienceValue` derivado + `AzureAd__Audience` no tickets-service env
+
+### Como o aluno reverte (se quiser v1 tokens)
+
+Edit `infra/main.bicep`:
+```diff
+- param tokenAudienceFormat string = 'v2'
++ param tokenAudienceFormat string = 'v1'
+```
+
+E aceitar que Directory Extension `app_tenant_id` só virá no ID token (não no access token), forçando outro caminho de tenant resolution server-side.
+
+---
+
+## Decisão #21 — Claim `app_tenant_id` aceita 3 formas (Sessão 9.4)
+
+> **Status:** CRAVADA · Forma: fallback chain em `TenantContext.cs` (.NET) e `_resolve_tenant_id` (Python) — aceita 3 variantes do claim conforme tier de licença AAD do aluno
+
+### Contexto
+
+Free tier AAD não inclui **Claims Mapping Policy** (feature P1+/P2). Directory Extension é o único pattern free pra custom claim em token. Mas o **formato emitido** difere por tipo de token e por presença de Claims Mapping Policy:
+
+| Cenário | Tipo de token | Claim name emitido |
+|---|---|---|
+| Free tier, Directory Extension | ID token v2 | `extension_<serverAppIdNoHyphens>_app_tenant_id` (forma longa) |
+| Free tier, Directory Extension | Access token v2 | `extn.app_tenant_id` (forma curta com prefix) |
+| P1+/P2 com Claims Mapping Policy | Access token v2 | `app_tenant_id` (forma curta sem prefix) |
+
+Hardcodar uma única forma quebra para alunos em outro tier ou contexto. Validar todas as 3 forms aceita o template em qualquer assinatura AAD, do free ao P2.
+
+### Decisão
+
+**`TenantContext.cs` (.NET) e `_resolve_tenant_id` (Python) aceitam as 3 formas com fallback chain.**
+
+```csharp
+// app/tickets-service/Auth/TenantContext.cs
+var tenantClaim =
+    user.FindFirst("app_tenant_id")?.Value
+    ?? user.FindFirst("extn.app_tenant_id")?.Value
+    ?? user.Claims
+        .FirstOrDefault(c => c.Type.EndsWith("app_tenant_id", StringComparison.Ordinal))
+        ?.Value;
+
+if (string.IsNullOrWhiteSpace(tenantClaim))
+{
+    throw new UnauthorizedAccessException("Token missing tenant claim (app_tenant_id).");
+}
+```
+
+```python
+# app/backend/auth/tenant.py
+def _resolve_tenant_id(claims: dict[str, Any]) -> str:
+    # Try short form first (P1+ Claims Mapping Policy)
+    if "app_tenant_id" in claims:
+        return claims["app_tenant_id"]
+    # Try access token v2 short form with prefix
+    if "extn.app_tenant_id" in claims:
+        return claims["extn.app_tenant_id"]
+    # Fallback to long form (free tier ID token v2)
+    for key, value in claims.items():
+        if key.endswith("app_tenant_id"):
+            return value
+    raise PermissionError("Token missing tenant claim (app_tenant_id).")
+```
+
+### Alternativas avaliadas
+
+| Alternativa | Veredicto |
+|---|---|
+| Apenas forma curta `app_tenant_id` (assume P1+) | ❌ Rejeitada — força aluno a comprar Premium AAD para template rodar. Viola "zero-friction setup". |
+| Apenas Directory Extension longa `extension_<id>_app_tenant_id` | ❌ Rejeitada — quebra se aluno tem P1+ e configura Claims Mapping Policy (que normaliza pra forma curta). |
+| Refactor pra App Roles com `value=tenantId` (Roles em vez de Extension) | ❌ Rejeitada — viola Decisão Q1B (claim específico anti-spoofing claim-based). App Roles são para autorização (RBAC), não para identidade de tenant. Misturar dimensões. |
+
+### Anti-padrões rejeitados
+
+❌ **Assumir tier de licença AAD** do aluno — template tem que funcionar no free tier.
+❌ **Single-form rigid match** — frágil a evoluções do Microsoft Identity Platform e a configurações legítimas (Claims Mapping).
+
+### Files alterados
+
+- `app/tickets-service/Auth/TenantContext.cs` — fallback chain 3-tier
+- `app/backend/auth/tenant.py` — `_resolve_tenant_id` com fallback chain 3-tier
+- `app/tickets-service/tests/Auth/TenantContextTests.cs` — testes parametrizados para as 3 formas
+- `app/backend/tests/auth/test_tenant.py` — testes pytest parametrizados para as 3 formas
+
+---
+
+## Decisão #22 — Token explicit injection no SqlClient .NET (paridade Decisão #17 Python) (Sessão 9.4)
+
+> **Status:** CRAVADA · Forma: `SqlConnectionFactory.cs` injeta token AAD via `SqlConnection.AccessToken` antes de `OpenAsync`; package `Microsoft.Data.SqlClient.Extensions.Azure` REMOVIDO; substituído por `Azure.Identity 1.13.1`
+
+### Contexto
+
+`Microsoft.Data.SqlClient` v6+ separou auth providers AAD (`ActiveDirectoryManagedIdentity`, `ActiveDirectoryDefault`) para **package opcional** `Microsoft.Data.SqlClient.Extensions.Azure`. Sem o package, `SqlConnection.OpenAsync()` lança:
+
+```
+ArgumentException: Cannot find an authentication provider for 'ActiveDirectoryManagedIdentity'.
+```
+
+Plus, o package `Extensions.Azure` requer **registro explícito** via `SqlAuthenticationProvider.SetProvider(...)` no startup, e tem **incompat de versão com SqlClient 7.x** (versão única `1.0.0` foi publicada e não recebeu update). Ficar dependendo dele é frágil — risco de quebrar em update transitivo do SqlClient.
+
+Idêntico em natureza ao problema que a Decisão #17 resolveu para o backend Python (ODBC Driver 18 + `Authentication=ActiveDirectoryMsi` em User-Assigned MI Linux Container Apps).
+
+### Decisão
+
+**`SqlConnectionFactory.cs` (.NET) faz token explicit injection via `Azure.Identity`** — bypassa o auth provider system inteiramente.
+
+```csharp
+// app/tickets-service/Data/SqlConnectionFactory.cs
+public class SqlConnectionFactory
+{
+    private readonly TokenCredential _credential;
+    private readonly string _connectionString;
+
+    public SqlConnectionFactory(IConfiguration config, IHostEnvironment env)
+    {
+        _connectionString = config.GetConnectionString("Sql")!;
+        _credential = env.IsDevelopment()
+            ? new DefaultAzureCredential()
+            : new ManagedIdentityCredential(config["AZURE_CLIENT_ID"]);
+    }
+
+    public async Task<SqlConnection> OpenAsync(CancellationToken ct = default)
+    {
+        var token = await _credential.GetTokenAsync(
+            new TokenRequestContext(new[] { "https://database.windows.net/.default" }),
+            ct);
+
+        var conn = new SqlConnection(_connectionString)
+        {
+            AccessToken = token.Token  // bypass auth provider system
+        };
+        await conn.OpenAsync(ct);
+        return conn;
+    }
+}
+```
+
+**Paridade arquitetural com Decisão #17** (backend Python faz mesmo pattern via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before` do pyodbc). Mesmo modelo mental para os dois microservices: nunca dependa de auth provider built-in do driver para User-Assigned MI; sempre obtenha token explicitamente via Azure Identity SDK e injete diretamente.
+
+### Alternativas avaliadas
+
+| Alternativa | Veredicto |
+|---|---|
+| Adicionar `Microsoft.Data.SqlClient.Extensions.Azure 1.0.0` + registrar provider | ❌ Rejeitada — versão única disponível, incompat com SqlClient 7.x (bumps de SqlClient quebram). Frágil long-term. |
+| Downgrade SqlClient 5.x (auth providers built-in) | ❌ Rejeitada — perde features 7.x (TLS 1.3, perf), breaking changes em refactors futuros. |
+| App Roles + impersonation server-side | ❌ Rejeitada — não resolve auth a SQL, só authz a tickets. Problema é distinto. |
+
+### Anti-padrões rejeitados
+
+❌ **Dependência em package opcional frágil** — package que não evolui junto com o package principal é dívida técnica garantida.
+❌ **Auth via connection string flag** (`Authentication=ActiveDirectoryManagedIdentity;User Id=...`) para User-Assigned MI Linux — driver-side gera erros opacos, debugging caríssimo.
+
+### Files alterados
+
+- `app/tickets-service/Data/SqlConnectionFactory.cs` — token explicit injection via `Azure.Identity`
+- `app/tickets-service/HelpSphere.Tickets.csproj` — adiciona `Azure.Identity 1.13.1`, REMOVE `Microsoft.Data.SqlClient.Extensions.Azure`
+- `app/tickets-service/Program.cs` — registra `SqlConnectionFactory` como Scoped DI
+
+---
+
+## Decisão #23 — Login redirect flow + chat dormente (Sessão 9.4)
+
+> **Status:** CRAVADA · Forma: `loginRedirect` substitui `loginPopup` em todo frontend; `LoginGate` componente bloqueante; backend `/redirect` serve `index.html`; rota `/chat` mantida mas escondida da nav (Bicep param `enableChat=false` por default)
+
+### Contexto
+
+**Parte A (login redirect):** MSAL `loginPopup` engole erros silenciosamente em browsers que bloqueiam popups (default em incognito do Edge/Chrome/Firefox). User clica botão de login e nada acontece — sem mensagem, sem erro visível, sem indicação. Plus, o template upstream assumia popup-only flow: rota `/redirect` no backend retornava blank string (era apenas um landing transitório que fechava via `window.opener`), incompatível com `loginRedirect` flow que precisa servir SPA real para hidratar e processar o `#code=...` hash.
+
+**Parte B (chat dormente):** A rota `/chat` (UI completa do template upstream com chat RAG) continua presente no código mas SEM pipeline RAG funcional ainda (prepdocs precisa rodar com PDFs reais, embeddings configurados, índice search populado — escopo Lab Intermediário, não v2.1.0). Mostrar nav link "Chat" ativo com feature parcialmente quebrada antes do Lab Intermediário ativar = "promessa quebrada" pedagógica que confunde aluno.
+
+### Decisão
+
+**Parte A:** Trocar `loginPopup` → `loginRedirect` em `LoginGate` e `LoginButton`. Adicionar `handleRedirectPromise()` no boot do MSAL (`index.tsx`). Backend `/redirect` agora serve `index.html` (não blank). Após `handleRedirectPromise()` consumir hash `#code=...`, redireciona manualmente para `/` (root do hashRouter).
+
+```ts
+// app/frontend/src/index.tsx
+await msalInstance.initialize();
+const result = await msalInstance.handleRedirectPromise();
+if (result?.account) {
+  msalInstance.setActiveAccount(result.account);
+  window.location.hash = "#/";  // hashRouter root
+}
+```
+
+```python
+# app/backend/app.py
+@bp.route("/redirect")
+async def redirect():
+    return await send_from_directory("static", "index.html")
+```
+
+**Parte B (chat dormente):** Rota `/chat` mantida no React Router (Lab Intermediário ativa via Bicep param `enableChat=true` → vira env var `ENABLE_CHAT=true` no Container App backend → exposta em `/auth_setup` pro frontend renderizar nav link). v2.1.0 sai com `enableChat=false` por default — chat ainda não tem pipeline RAG funcional. Aluno vê apenas Tickets + Dashboard até Lab Intermediário ativar prepdocs+RAG.
+
+```bicep
+// infra/main.bicep
+@description('Enable RAG chat feature. Set to true after Lab Intermediário activates prepdocs+RAG pipeline.')
+param enableChat bool = false
+
+// backend Container App env
+{ name: 'ENABLE_CHAT', value: string(enableChat) }
+```
+
+```ts
+// app/frontend/src/components/Sidebar.tsx
+{enableChat && <NavLink to="/chat">Chat</NavLink>}
+```
+
+### Alternativas avaliadas
+
+| Alternativa (Parte A) | Veredicto |
+|---|---|
+| Manter `loginPopup` + melhorar error handling (toast em catch) | ❌ Rejeitada — popup blocker é comportamento default em incognito, não-resolvível por código JS no popup-mode. |
+| Detectar popup blocker e fallback para redirect | ❌ Rejeitada — overengineering. Redirect funciona em 100% dos browsers, popup em ~70%. |
+
+| Alternativa (Parte B) | Veredicto |
+|---|---|
+| Deletar rota `/chat` do código | ❌ Rejeitada — Lab Intermediário precisa do code base reusável (RAG UI, citation rendering, tracing). Re-vendorar do upstream depois é trabalho duplicado. |
+| `enableChat=true` por default + UI estado vazio ("Chat indisponível, ative prepdocs") | ❌ Rejeitada — exibe feature parcialmente quebrada antes de prepdocs+RAG. Aluno vê "Chat" na nav, clica, vê estado vazio = perda de confiança no template. |
+| Lazy load do bundle `/chat` (não baixa JS) | ⚠️ Complementar — implementado via React.lazy mas independente da decisão de mostrar/esconder. |
+
+### Anti-padrões rejeitados
+
+❌ **Silent failures em UX crítico** — login que não funciona sem feedback é o pior bug pedagógico possível (aluno acha que template está quebrado).
+❌ **Features visíveis sem implementação completa** — toda nav link clicável tem que entregar o que promete; se não, esconde até estar pronto.
+
+### Files alterados
+
+- `app/frontend/src/index.tsx` — `msalInstance.initialize()` + `handleRedirectPromise()` + redirect manual pra hashRouter root
+- `app/frontend/src/components/LoginGate.tsx` — NEW (componente bloqueante com call-to-action)
+- `app/frontend/src/components/LoginButton.tsx` — `loginPopup` → `loginRedirect`; remove `console.log` silencioso do catch
+- `app/frontend/src/components/Sidebar.tsx` — `{enableChat && <NavLink to="/chat">}`
+- `app/frontend/src/authConfig.ts` — exporta `enableChat` lido de `/auth_setup` (Decisão #19)
+- `app/backend/app.py` — `/redirect` serve `index.html`; `/auth_setup` expõe `enableChat`
+- `infra/main.bicep` — param `enableChat bool = false` + env `ENABLE_CHAT` no Container App backend
+
+---
+
 ## Audit trail
 
 | Data | Autor | Decisão registrada |
@@ -847,3 +1193,4 @@ E aceitar que a primeira request após 1h de inatividade vai levar 30-60s (cold-
 | 2026-05-04 | @aiox-master (Orion) executando docs Sessão 9.1 | **Sessão 9.1 — docs cravadas para gravação slide 13+.** Decisão #16 movida de "Backlog futuro PLANEJADA" → CRAVADA com seção comprehensive (Sessões 6-8 trajetória + estado final epic + defesa arquitetural + 4 lições pedagógicas). README v2 do apex-helpsphere reflete stack real (Container App .NET tickets MI + Python /api/tickets 410 Gone). PARA-O-ALUNO.md criado como entrypoint do aluno (fork → clone → azd up). Slides 13-14 do `azure-retail/02_Apresentação/` corrigidos (URL fork, fork-first workflow, abstração "API serverless" no slide 13 — Opção A). |
 | 2026-05-04 | @aiox-master (Orion) executando como @dev/@devops post-Sessão 9.1 | **Sessão 9.2 — backend Python crashloop RESOLVIDO + Decisões #17 e #18 cravadas (commits `7a4ffd5` + `a776cc5`).** Investigação sistemática descobriu que **Surpresa #14 da memória estava equivocada** (Bicep sempre injetou `AZURE_CLIENT_ID` corretamente — linhas 679 + 751 de main.bicep). Root cause real: ODBC Driver 18 + `Authentication=ActiveDirectoryMsi;User Id={clientId}` é incompatível com User-Assigned MI em Linux Container Apps — driver não obtém token AAD corretamente. **Decisão #17 cravada:** refator de `app/backend/repositories/_pool.py` para abordagem MS-recomendada (token via `azure.identity.ManagedIdentityCredential` + injeção via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before`). Token cached 50min, Connection Timeout 30s→60s, eager fetch fail-fast. API mantida compatível — repositories não mudaram. **Decisão #18 cravada:** `autoPauseDelay: 60 → -1` em `infra/main.bicep` (DB sempre Online; trade-off ~$15-30/mês vs interrupção em demo gravada). **Story 06.5c.5 fechada** (commit `+a776cc5`): novo workflow `.github/workflows/dotnet-test.yaml` para build + test do tickets-service .NET 10 a cada PR/push em `app/tickets-service/**`. **Validação:** local env do prof + CI fresh provision (run `25349888625`) ambos GREEN nos smokes backend Python + tickets .NET. Epic progress: 5/9 Done (06.5c.1, .2, .4, .6, .7) + 1 Done nesta sessão (.5) → **6/9 Done** + 1 partial (.3) + 2 pending (.8, .9). Lição pedagógica: token explícito > driver-side MSI auth para User-Assigned MI em Linux. |
 | 2026-05-02 | @aiox-master (Orion) executando como @devops (Gage) | **Sessão 4 PIVOT — extração para repo público + Actions OIDC.** Decisões #10, #11, #12 cravadas. Após blockers locais (Python 3.14 vs Dockerfile 3.13, pyodbc não compila), professor questionou: por que não Actions desde início? Pivot: descartar approach local, criar repo público dedicado **`tftec-guilherme/apex-helpsphere`**, configurar OIDC via `azd pipeline config` (User Managed Identity `msi-helpsphere-template` + 2 federated credentials), enriquecer `azure-dev.yml` com bicep validation + smoke test + cleanup steps. **6 runs do workflow, cada falha cirurgicamente diferente:** (#1) `.sh` permission denied → `git update-index --chmod=+x`; (#2) mesmo race; (#3) eastus2 sem capacidade SQL/Search → westus3; (#4) SQL DB zoneRedundant não suportado em PAYG → `zoneRedundant: false` explícito; (#5) Cog Services soft-deleted → `RESTORE_COGNITIVE_SERVICES=true`; (#6) RG Deleting (race cleanup); (#6-bis ~run #6 reexecutado) provisionou TODOS os 15 recursos com sucesso em westus3 mas falhou em prepdocs com "cannot write empty image" → guard PDF count em `prepdocs.{sh,ps1}` (Decisão #12). **Sessão pausada antes do run #7** com fix `prepdocs` commitado e pushed (`99e288a` com `[skip ci]` para não trigger workflow enquanto cleanup do RG run #6 ainda em curso). Próxima sessão: aguardar cleanup terminar, disparar `gh workflow run azure-dev.yml --ref main` (run #7), monitor, smoke endpoints, re-baseline pytest, README defesa, handoff @architect *qa-gate. |
+| 2026-05-05 | @aiox-master (Orion) orquestrando 11 subagents em 4 ondas (Sessões 9.4-9.5) | **HelpSphere v2.1.0 — Setup Zero-Friction Production-Grade. Decisões #19, #20, #21, #22, #23 cravadas.** Primeiro release com fluxo `azd up` end-to-end FUNCIONAL pra aluno (login real no browser + tickets carregando + dashboard executivo). Resolve 11 surpresas pedagógicas novas descobertas no primeiro teste E2E real do prof. **#19 — Runtime config via `/auth_setup.ticketsApiBase`:** elimina build-time injection `VITE_API_TICKETS_URL` (aluno esquecia → bundle quebrado → 410 Gone genérico). Mesmo bundle serve qualquer environment. **#20 — Audience GUID puro v2 no Bicep do tickets-service:** corrige `IDX10214 Audience validation failed` causado pelo `api://${clientAppId}` legado v1 do template upstream. Param `tokenAudienceFormat` (v1/v2/both, default v2) permite override em migrações. **#21 — Claim `app_tenant_id` aceita 3 formas:** fallback chain em `TenantContext.cs` (.NET) e `_resolve_tenant_id` (Python) cobre forma curta P1+ (`app_tenant_id`), forma curta access token v2 (`extn.app_tenant_id`), forma longa free tier ID token v2 (`extension_<id>_app_tenant_id`). Template funciona em qualquer tier AAD. **#22 — Token explicit injection no SqlClient .NET:** paridade arquitetural com Decisão #17 Python — `Azure.Identity` + `SqlConnection.AccessToken` em vez de `Microsoft.Data.SqlClient.Extensions.Azure 1.0.0` (frágil, incompat com SqlClient 7.x). Mesmo modelo mental para os 2 microservices. **#23 — Login redirect flow + chat dormente:** `loginPopup` → `loginRedirect` (popup blocker engole erros silenciosamente em incognito) + `LoginGate` componente bloqueante + `/redirect` serve `index.html` + `prompt: select_account`. Rota `/chat` mantida no router mas escondida da nav até Lab Intermediário ativar via Bicep param `enableChat=true`. **Bonus entregas:** Dashboard executivo `/` (4 KPIs + 2 charts Recharts via novo endpoint `/api/tickets/stats` com Dapper QueryMultipleAsync 5-selects single round-trip) · Apex Executivo design system (off-white #fafaf7, navy #0c1834, gold #a87b3f, Fraunces+Inter Tight+JetBrains Mono) · Shell layout 240px sidebar + topbar contextual · `auth_init.py` rewrite 716 linhas (two-app pattern + Graph perms automatizadas + Directory Extension + Optional Claim + admin consent automático) · `scripts/preflight.{ps1,sh}` 8 pré-condições · `scripts/setup_search_index.*` cria `gptkbindex` idempotentemente · `.github/workflows/setup-aad.yml` standalone para recriar AAD apps. **Estado pós-release:** 29 surpresas catalogadas (era 18 na v2.0.0), 0 passos manuais no portal Azure, setup zero-friction <15min. |

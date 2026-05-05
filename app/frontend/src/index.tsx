@@ -6,21 +6,28 @@ import { HelmetProvider } from "react-helmet-async";
 import { MsalProvider } from "@azure/msal-react";
 import { AuthenticationResult, EventType, PublicClientApplication } from "@azure/msal-browser";
 
+// Fontes editoriais (Apex Executivo) — carregadas globalmente via @fontsource.
+// theme/tokens.css faz referência a 'Fraunces', 'Inter Tight' e 'JetBrains Mono'.
+import "@fontsource/fraunces/400.css";
+import "@fontsource/fraunces/600.css";
+import "@fontsource-variable/inter-tight";
+import "@fontsource/jetbrains-mono/400.css";
+
 import "./index.css";
 
 import Chat from "./pages/chat/Chat";
-import LayoutWrapper from "./layoutWrapper";
+import { Shell } from "./Shell";
 import i18next from "./i18n/config";
 import { msalConfig, useLogin } from "./authConfig";
 
 const router = createHashRouter([
     {
         path: "/",
-        element: <LayoutWrapper />,
+        element: <Shell />,
         children: [
             {
                 index: true,
-                element: <Chat />
+                lazy: () => import("./pages/dashboard/Dashboard")
             },
             {
                 path: "tickets",
@@ -29,6 +36,12 @@ const router = createHashRouter([
             {
                 path: "tickets/:ticketId",
                 lazy: () => import("./pages/tickets/TicketDetail")
+            },
+            {
+                // Chat usa default export — mantemos eager para preservar pattern atual.
+                // Lab Intermediário ativa o link na sidebar via authSetup.enableChat.
+                path: "chat",
+                element: <Chat />
             },
             {
                 path: "*",
@@ -48,6 +61,25 @@ const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
         msalInstance = new PublicClientApplication(msalConfig);
         try {
             await msalInstance.initialize();
+
+            // CRITICAL: handleRedirectPromise must run on every page load before any
+            // other MSAL call. Quando o user volta do AAD apos loginRedirect, este
+            // metodo processa o hash da URL (#code=...) e completa o login fluxo.
+            // Sem isso, loginRedirect quebra silenciosamente.
+            try {
+                const redirectResult = await msalInstance.handleRedirectPromise();
+                if (redirectResult?.account) {
+                    msalInstance.setActiveAccount(redirectResult.account);
+                    // Apos consumir o hash MSAL, redireciona para root.
+                    // pathname=/redirect (servido pelo backend) precisa virar / (hashRouter).
+                    if (window.location.pathname === "/redirect") {
+                        window.location.replace("/");
+                    }
+                }
+            } catch (redirectErr) {
+                // eslint-disable-next-line no-console
+                console.error("MSAL handleRedirectPromise failed", redirectErr);
+            }
 
             // Default active account to the first one if none is set
             if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {

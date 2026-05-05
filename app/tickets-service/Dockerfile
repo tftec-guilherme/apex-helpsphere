@@ -30,6 +30,11 @@ RUN dotnet publish "src/TicketsService.Api/TicketsService.Api.csproj" \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
 
+# Microsoft.Data.SqlClient requer ICU (cultura completa) — Alpine .NET imagem
+# vem com Globalization Invariant Mode por default. Sem icu-libs, qualquer
+# tentativa de abrir SqlConnection lanca NotSupportedException.
+RUN apk add --no-cache icu-libs icu-data-full
+
 # Non-root user (security baseline)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build --chown=appuser:appgroup /app/publish .
@@ -38,6 +43,7 @@ USER appuser
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
-    DOTNET_RUNNING_IN_CONTAINER=true
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 ENTRYPOINT ["dotnet", "TicketsService.Api.dll"]

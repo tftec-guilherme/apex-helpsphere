@@ -1,0 +1,99 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+    width: 100%;
+}
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+}
+
+.chartCard {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    transition: box-shadow var(--t-base), border-color var(--t-base);
+}
+
+.chartCard:hover {
+    box-shadow: var(--shadow-2);
+    border-color: var(--color-border-strong);
+}
+
+.chartCardHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-4);
+}
+
+.chartCard h3 {
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    line-height: 1.2;
+    margin: 0;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+}
+
+.chartCardKicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-subtle);
+}
+
+.loading,
+.error,
+.empty {
+    padding: var(--space-8) var(--space-6);
+    font-family: var(--font-body);
+    font-size: var(--fs-base);
+    color: var(--color-text-muted);
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.error {
+    color: var(--color-danger);
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger);
+}
+
+@media (max-width: 1024px) {
+    .charts {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 540px) {
+    .kpis {
+        grid-template-columns: 1fr;
+    }
+}

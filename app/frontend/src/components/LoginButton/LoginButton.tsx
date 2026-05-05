@@ -22,41 +22,42 @@ export const LoginButton = () => {
         fetchUsername();
     }, []);
 
-    const handleLoginPopup = () => {
-        /**
-         * When using popup and silent APIs, we recommend setting the redirectUri to a blank page or a page
-         * that does not implement MSAL. Keep in mind that all redirect routes must be registered with the application
-         * For more information, please follow this link: https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/login-user.md#redirecturi-considerations
-         */
+    const handleLoginRedirect = () => {
+        // loginRedirect (vs popup): navega janela inteira para AAD, robusto contra popup blockers.
+        // prompt:select_account força AAD a sempre mostrar seletor — UX claro quando user
+        // quer alternar conta vs cached SSO.
         instance
-            .loginPopup({
+            .loginRedirect({
                 ...loginRequest,
-                redirectUri: getRedirectUri()
+                redirectUri: getRedirectUri(),
+                prompt: "select_account"
             })
-            .catch(error => console.log(error))
-            .then(async () => {
-                setLoggedIn(await checkLoggedIn(instance));
-                setUsername((await getUsername(instance)) ?? "");
+            .catch(error => {
+                // eslint-disable-next-line no-console
+                console.error("[MSAL loginRedirect] error:", error);
             });
     };
-    const handleLogoutPopup = () => {
+
+    const handleLogoutRedirect = () => {
         if (activeAccount) {
+            // logoutRedirect + clear cache: garante que MSAL nao mantem refresh tokens
+            // entre sessoes, evitando comportamento confuso ao trocar de conta.
             instance
-                .logoutPopup({
-                    mainWindowRedirectUri: "/", // redirects the top level app after logout
-                    account: instance.getActiveAccount()
+                .logoutRedirect({
+                    account: activeAccount,
+                    postLogoutRedirectUri: "/"
                 })
-                .catch(error => console.log(error))
-                .then(async () => {
-                    setLoggedIn(await checkLoggedIn(instance));
-                    setUsername((await getUsername(instance)) ?? "");
+                .catch(error => {
+                    // eslint-disable-next-line no-console
+                    console.error("[MSAL logoutRedirect] error:", error);
                 });
         } else {
             appServicesLogout();
         }
     };
+
     return (
-        <Button className={styles.loginButton} onClick={loggedIn ? handleLogoutPopup : handleLoginPopup}>
+        <Button className={styles.loginButton} onClick={loggedIn ? handleLogoutRedirect : handleLoginRedirect}>
             {loggedIn ? `${t("logout")}\n${username}` : `${t("login")}`}
         </Button>
     );

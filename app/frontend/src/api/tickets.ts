@@ -7,6 +7,7 @@
  * - 501 do `/suggest` é tratado como sucesso para UX (resposta didática)
  */
 import { getHeaders } from "./api";
+import { ticketsApiBase } from "../authConfig";
 import type {
     Ticket,
     TicketComment,
@@ -19,16 +20,13 @@ import type {
     ApiErrorBody
 } from "./ticketsModels";
 
-// Story 06.5c.6 (Decisão #16): split de bases — tickets-service .NET vs Python backend.
-// `TICKETS_API_BASE` aponta pro Container App tickets-service (.NET 10 Minimal API + Dapper + MI)
-// que serve os 5 endpoints CRUD canônicos. `BACKEND_URI` (relative) continua apontando pro
-// backend Python que serve `/api/tenants/me` (config) e `/api/tickets/{id}/suggest` (stub 501
-// para Lab Intermediário sobrescrever com RAG).
-//
-// Build-time injection via Vite (`import.meta.env.VITE_API_TICKETS_URL`):
-//   - DEV: vazio → usa proxy do vite.config.ts apontando pra `http://localhost:8080`
-//   - PROD: prebuild hook em azure.yaml exporta TICKETS_BACKEND_URI do azd env (Bicep output)
-const TICKETS_API_BASE = (import.meta.env.VITE_API_TICKETS_URL ?? "").replace(/\/+$/, "");
+// Story 06.5c.6 (Decisão #16) + Decisão #19 (runtime config):
+// `TICKETS_API_BASE` vem do `/auth_setup` (campo `ticketsApiBase`, populado pelo backend
+// a partir da env `TICKETS_BACKEND_URI`) — não está mais embarcado no bundle Vite, então o
+// mesmo build serve qualquer environment (dev/staging/prod). `BACKEND_URI` (relative)
+// continua apontando pro backend Python que serve `/api/tenants/me` (config) e
+// `/api/tickets/{id}/suggest` (stub 501 para Lab Intermediário sobrescrever com RAG).
+const TICKETS_API_BASE = ticketsApiBase;
 const BACKEND_URI = "";
 const TICKETS_BASE = `${TICKETS_API_BASE}/api/tickets`;
 

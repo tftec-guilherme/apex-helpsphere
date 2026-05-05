@@ -15,6 +15,11 @@
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.72" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+    <!-- SqlClient v6+ moveu providers AAD para package opcional + registro fragil.
+         Decisao #17 (paridade com backend Python): obter token via Azure.Identity
+         e injetar em SqlConnection.AccessToken. Bypassa auth provider system
+         inteiramente, funciona em qualquer versao de SqlClient. -->
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
   </ItemGroup>
 
   <PropertyGroup>

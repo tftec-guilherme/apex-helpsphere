@@ -171,3 +171,6 @@ data/**/*.md5
 **/[Pp]ublish/
 **/[Pp]ublishProfiles/
 **/*.publishsettings
+
+# Bicep compiled output (transient)
+infra/main.json

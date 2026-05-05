@@ -48,17 +48,30 @@ tickets_bp = Blueprint("helpsphere_tickets", __name__)
 def _resolve_tenant_id(auth_claims: dict[str, Any]) -> str:
     """Extrai `app_tenant_id` do JWT claim. HTTP 403 se ausente.
 
-    NUNCA fallback silencioso — token sem a claim é configuração quebrada
-    do Entra App Registration e deve falhar audível.
+    Decisão Q1B + free-tier AAD fallback:
+    - Forma curta "app_tenant_id" requer Claims Mapping Policy (AAD P1+).
+    - Forma longa "extension_<serverAppIdNoHyphens>_app_tenant_id" é emitida
+      via Directory Extension + Optional Claim (free tier). Aceitar ambas
+      mantém template usável sem licença premium.
+
+    NUNCA fallback silencioso — token sem nenhuma das formas é configuração
+    quebrada do Entra App Registration e deve falhar audível.
     """
-    tenant_id = auth_claims.get("app_tenant_id")
+    tenant_id = auth_claims.get("app_tenant_id") or auth_claims.get("extn.app_tenant_id")
+    if not tenant_id:
+        # Directory Extension fallback — em access tokens v2, AAD emite como
+        # "extn.app_tenant_id" (curto); em id tokens, como "extension_<appId>_app_tenant_id" (longo).
+        for k, v in auth_claims.items():
+            if k.endswith("app_tenant_id") and v:
+                tenant_id = v
+                break
     if not tenant_id:
         logger.warning(
-            "JWT sem claim app_tenant_id | sub=%s | name=%s",
+            "JWT sem claim app_tenant_id (nem forma extension_*) | sub=%s | name=%s",
             auth_claims.get("sub"),
             auth_claims.get("name"),
         )
-        abort(403, description="JWT claim 'app_tenant_id' ausente — configurar no Entra App Registration")
+        abort(403, description="JWT claim 'app_tenant_id' ausente — configurar Directory Extension + Optional Claim no Entra App Registration")
     return str(tenant_id)
 
 

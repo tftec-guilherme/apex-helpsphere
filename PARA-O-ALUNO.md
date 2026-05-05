@@ -25,7 +25,23 @@ Custo se esquecer ligado 1 mês: **R$ 80-120**. Não esqueça.
 
 ---
 
-## 🚀 Quick Start (5 passos)
+## 🚀 Quick Start (6 passos)
+
+### 0. Pre-flight check
+
+Antes de tudo, valide pré-condições do seu ambiente:
+
+```bash
+# Windows PowerShell:
+pwsh ./scripts/preflight.ps1
+
+# macOS/Linux/WSL:
+./scripts/preflight.sh
+```
+
+O script valida em ~30s: PowerShell 7+ (Win), Long Path Win, Docker rodando, `az login`, `azd login`, ODBC Driver 18, Python 3.13.x, subscription ativa correta. Sai com erro acionável (`Long Path desabilitado — rode: gpedit.msc...`) se algo falhar.
+
+> **Por que pre-flight?** Cada falha que ele detecta = 5-15min economizados de `azd up` falhar parcialmente. v2.1.0 documenta 29 armadilhas — pre-flight cobre as 6 mais comuns.
 
 ### 1. Fork + clone do **seu** fork
 
@@ -99,6 +115,8 @@ azd down --purge
 | **Lab Final** (M06) | Agentes Foundry com tools + canal de voz (Speech STT/TTS) + integração com tickets | seu fork (branch `lab-final`) |
 | **Lab Avançado** (D04 sinergia) | Tickets-service publica `TicketStatusChanged` no Service Bus, Logic App reage | repo separado: `lab-avancado-dashboard` |
 
+> **Chat / RAG no template:** A rota `/chat` está **dormente** no template v2.1.0 — sumida da nav lateral. Quando você fizer o **Lab Intermediário (M02-M05)**, vai habilitar via Bicep param `enableChat=true` (que vira env var `ENABLE_CHAT=true` no backend, exposta em `/auth_setup` pro frontend). Backend Python `/chat` está **funcional** (auth + OpenAI client setup), só falta o pipeline RAG (embeddings + AI Search index com docs Apex) que é justamente o escopo do lab. Por isso ele aparece sem opção na UI: evita "promessa quebrada" pro aluno e foca a v2.1.0 em **infraestrutura production-grade + tickets**.
+
 ---
 
 ## 💡 Surpresas pedagógicas que você vai encontrar (e que o template MS NÃO documenta)
@@ -135,7 +153,57 @@ Estas surpresas só aparecem quando você roda `azd up` **na primeira vez no seu
 | **#17** | ACA Outbound Static IP precisa estar no firewall do SQL Server (não basta `AllowAllAzureIPs`) | Sintoma: mesmo com `AllowAllAzureIPs` (0.0.0.0/0.0.0.0), Container App backend dá `HYT00 Login timeout`. **Solução:** descobrir o IP estático do ACA Environment e adicionar regra explícita: `az containerapp env show --query "properties.staticIp"` → `az sql server firewall-rule create --name "ACAOutboundIP" --start-ip-address $IP --end-ip-address $IP`. **Nota:** o template já configura essa regra automaticamente em `infra/main.bicep`. |
 | **#18** | Azure SQL Serverless `autoPauseDelay` causa cold-start de 30-60s | Se DB pausada, primeira request leva 30-60s para resumir. Backend Python com `Connection Timeout=30s` falhava no resume; tickets-service .NET tinha primeira request lenta. **Fix permanente (Decisão #18):** `autoPauseDelay = -1` no Bicep (DB sempre Online; trade-off ~$15-30/mês vs interrupção em demo gravada) + Connection Timeout 60s no DSN. Aluno em produção real pode reverter para 60min se aceitar o trade-off. |
 
-> **Total cravado:** 18 surpresas → 18 lições aprendidas → todas viraram fix permanente no template ou orientação aqui. Você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Isso é a essência do template "pré-pronto": absorver a complexidade real que ninguém documenta.
+### Surpresas E2E auth + UI (Sessões 9.4-9.5)
+
+Estas surpresas só aparecem quando você faz o **primeiro login real no browser**
+após `azd up`. Foram descobertas durante a sessão de 2026-05-05 que validou o
+fluxo end-to-end pela primeira vez. **Todas foram automatizadas no template
+v2.1.0** — você só vai ver se modificar o auth flow ou rodar com setup
+parcialmente quebrado.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#19** | Single-app pattern (1 App Registration servindo SPA + API) crasha com `AADSTS90009: application requesting token for itself` | Microsoft bloqueia self-token. **Two-app pattern obrigatório**: Server App expõe API + Client App SPA consome. `auth_init.py` v2.1.0 cria os 2 automaticamente — não tente "simplificar" pra 1 app. |
+| **#20** | Bicep do template upstream (`azure-search-openai-demo`) seta `AzureAd__Audience: api://{clientAppId}` no tickets-service. Tokens emitidos com `aud=api://{serverAppId}` (correto) falham validação | Bug do template upstream. **Fix permanente:** `tickets-service` Bicep usa `serverAppId` no audience (Decisão #20). |
+| **#21** | URL do tickets-service embarcada no bundle Vite via `VITE_API_TICKETS_URL` (build-time injection). Esquecer de exportar antes de `npm run build` = bundle com path relativo = backend retorna 410 Gone | Anti-pattern build-time pra config de env. **Fix permanente (Decisão #19):** backend expõe `ticketsApiBase` em runtime via `/auth_setup`. Mesmo bundle serve qualquer environment. |
+| **#22** | MSAL.js `loginPopup` retorna `AADSTS650056: Misconfigured application` quando Client App não declara `Microsoft Graph` permissions (User.Read, openid, profile, email, offline_access) | OIDC scopes implícitos exigem Graph perms registradas. **Fix permanente:** `auth_init.py` v2.1.0 declara essas 5 perms no Client App + admin consent automático. |
+| **#23** | Optional Claim com Directory Extension não aparece em **access token** se `Server App.api.requestedAccessTokenVersion != 2` (default null = v1) | v1 access tokens não emitem extension claims via optional claim mechanism. **Fix permanente:** `auth_init.py` v2.1.0 seta `accessTokenAcceptedVersion=2` no Server App. |
+| **#24** | Token v2 emite audience como GUID puro (`{serverAppId}`), não `api://{serverAppId}` (v1 format). Tickets-service .NET configurado pra v1 rejeita com `IDX10214: Audience validation failed` | Format de `aud` muda entre v1 e v2. **Fix permanente (Decisão #20):** Bicep param `tokenAudienceFormat` com default `v2` → audience = GUID puro. Aceita `v1`/`both` se aluno quiser. |
+| **#25** | Claim `app_tenant_id` chega no JWT em **3 formas diferentes** dependendo do tier de licença AAD: forma curta (`app_tenant_id`, requer Claims Mapping Policy P1+), forma longa em ID token (`extension_<serverAppIdNoHyphens>_app_tenant_id`), forma curta em access token v2 (`extn.app_tenant_id`) | Free tier AAD (Decisão Q1B preservada). **Fix permanente (Decisão #21):** `TenantContext.cs` (.NET) e `_resolve_tenant_id` (Python) aceitam as 3 formas. Aluno em qualquer tier funciona. |
+| **#26** | Alpine .NET image (`mcr.microsoft.com/dotnet/aspnet:10.0-alpine`) tem `Globalization Invariant Mode` por default. `Microsoft.Data.SqlClient.SqlConnection.TryOpen` lança `NotSupportedException` sem ICU instalado | Imagem MS Alpine é minimal — falta ICU. **Fix permanente:** `Dockerfile` do tickets-service `apk add icu-libs icu-data-full` + `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`. |
+| **#27** | `Microsoft.Data.SqlClient` v6+ separou auth providers AAD (`ActiveDirectoryManagedIdentity` etc.) para package opcional `Microsoft.Data.SqlClient.Extensions.Azure`. Sem ele, `SqlConnection.OpenAsync` lança `ArgumentException: Cannot find an authentication provider for 'ActiveDirectoryManagedIdentity'` | Breaking change não-óbvio em SqlClient. **Fix permanente (Decisão #22):** `SqlConnectionFactory.cs` faz token explicit injection via `Azure.Identity` (paridade com Decisão #17 do backend Python). Bypassa auth provider system inteiramente, funciona em qualquer versão SqlClient. |
+| **#28** | MSAL.js `loginPopup` engole erros silenciosamente quando popup é bloqueado pelo browser. User clica botão e nada acontece — erro só aparece no console F12 | Browser default em incognito bloqueia popups. **Fix permanente (Decisão #23):** trocar `loginPopup` → `loginRedirect` (navega janela inteira para AAD, robusto contra popup blockers). `LoginGate` componente bloqueante substitui "click no botão e talvez funcione". |
+| **#29** | `loginRedirect` quebra silenciosamente se a rota `/redirect` retornar página em branco. Browser volta de Microsoft com `#code=...` no hash, mas React não monta → `handleRedirectPromise()` nunca processa o token | Template original assumia popup-only. **Fix permanente:** rota `/redirect` no backend serve `index.html` (não blank string). `index.tsx` chama `handleRedirectPromise()` no boot do MSAL e redireciona pra `/` após processar hash. |
+
+> **Total cravado v2.1.0:** 29 surpresas → 29 lições aprendidas → 100% automatizadas no template. Você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico desta evolução: ~16h de debugging E2E real (sessão 9.4-9.5).
+
+---
+
+## ⚙️ Setup avançado (CI / GitHub Actions)
+
+### Permissão Microsoft Graph para `auth_init.py` em CI
+
+O workflow `.github/workflows/setup-aad.yml` (e o `azure-dev.yml` que chama `azd provision` → preprovision hook → `auth_init.py`) cria App Registrations no AAD via Microsoft Graph API. Pra isso funcionar em CI, o **federated SP** que GH Actions usa precisa de:
+
+- **API permission Microsoft Graph `Application.ReadWrite.All`** (Application type, NÃO Delegated)
+- **Admin consent** dessa permission
+
+Configure 1 vez (depois de `azd pipeline config` criar o federated SP):
+
+```bash
+# Pegue o SP_APP_ID do federated SP (printado por azd pipeline config)
+SP_APP_ID="<from-azd-pipeline-config>"
+
+# Adiciona permission
+az ad app permission add --id $SP_APP_ID \
+    --api 00000003-0000-0000-c000-000000000000 \
+    --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
+
+# Admin consent
+az ad app permission admin-consent --id $SP_APP_ID
+```
+
+Sem isso, CI falha com `Insufficient privileges` ao tentar criar App Registrations.
 
 ---
 

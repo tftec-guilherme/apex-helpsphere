@@ -121,14 +121,22 @@ mimetypes.add_type("text/css", ".css")
 
 @bp.route("/")
 async def index():
-    return await bp.send_static_file("index.html")
+    response = await bp.send_static_file("index.html")
+    # Local dev: previne cache de bundles obsoletos (chunks com hash velho que somem ao rebuildar).
+    response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
 
 
-# Empty page is recommended for login redirect to work.
-# See https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/initialization.md#redirecturi-considerations for more information
+# Login redirect — serve a SPA bundle full (nao blank).
+# Quando MSAL.js usa loginRedirect, browser volta para /redirect#code=...
+# O React boot precisa rodar para que handleRedirectPromise() consuma o hash
+# e complete o login. Servir index.html garante que o app inicializa.
+# (Original template usava blank string assumindo popup-only flow.)
 @bp.route("/redirect")
 async def redirect():
-    return ""
+    response = await bp.send_static_file("index.html")
+    response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
 
 
 @bp.route("/favicon.ico")
@@ -276,7 +284,13 @@ async def chat_stream(auth_claims: dict[str, Any]):
 @bp.route("/auth_setup", methods=["GET"])
 def auth_setup():
     auth_helper = current_app.config[CONFIG_AUTH_CLIENT]
-    return jsonify(auth_helper.get_auth_setup_for_client())
+    setup = auth_helper.get_auth_setup_for_client()
+    # Runtime config (env-driven) — evita URL embedded no bundle Vite.
+    setup["ticketsApiBase"] = os.environ.get("TICKETS_BACKEND_URI", "")
+    # v2.1.0 (Sessão 9.5, Wave 3.F): feature flag chat — frontend usa pra esconder
+    # a aba "Chat" da nav quando false. Default false (aluno habilita no Lab Intermediário).
+    setup["enableChat"] = os.environ.get("ENABLE_CHAT", "false").lower() == "true"
+    return jsonify(setup)
 
 
 @bp.route("/config", methods=["GET"])

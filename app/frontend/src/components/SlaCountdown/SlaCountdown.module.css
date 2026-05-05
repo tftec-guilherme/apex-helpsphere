@@ -1,0 +1,46 @@
+/* SlaCountdown — Wave 3.I */
+.countdown {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.label {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.bar {
+    height: 6px;
+    width: 100%;
+    background: var(--color-border);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-pill);
+    transition: width var(--t-base);
+}
+
+.breached .fill {
+    background: var(--color-danger);
+}
+
+.breached .label {
+    color: var(--color-danger);
+    font-weight: var(--fw-semibold);
+}
+
+.closed .label {
+    color: var(--color-text-muted);
+}
+
+.fillClosed {
+    background: var(--color-success);
+    opacity: 0.65;
+}

@@ -1,0 +1,32 @@
+/*
+ * Wrapper styling para os gráficos baseados em recharts. As cores dos charts
+ * são aplicadas inline (CSS vars) dentro dos próprios componentes — este
+ * arquivo cobre apenas wrappers/utilitários compartilhados.
+ */
+.chartWrapper {
+    width: 100%;
+    height: 100%;
+}
+
+.chartLegend {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+    font-family: var(--font-body);
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+}
+
+.chartLegendItem {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.chartLegendDot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
+}

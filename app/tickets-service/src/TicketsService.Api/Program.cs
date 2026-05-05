@@ -117,6 +117,9 @@ app.MapGet("/internal/sql-ping", async (
 // Story 06.5c.2 — 5 endpoints REST sob /api/tickets/*
 app.MapTicketsEndpoints();
 
+// Wave 3.E (v2.1.0) — GET /api/tickets/stats (Dashboard aggregations)
+app.MapStatsEndpoints();
+
 await app.RunAsync().ConfigureAwait(false);
 
 // Required for WebApplicationFactory<Program> in tests
