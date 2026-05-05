@@ -76,7 +76,7 @@ class MockCursor:
     def rowcount(self) -> int:
         return self.next_rowcount
 
-    async def __aenter__(self) -> "MockCursor":
+    async def __aenter__(self) -> MockCursor:
         # Avança o description quando entra em novo contexto de cursor
         if self._description_queue and len(self._description_queue) > 1:
             self._description_queue.pop(0)
@@ -93,7 +93,7 @@ class MockConnection:
     def cursor(self) -> MockCursor:
         return self._cursor
 
-    async def __aenter__(self) -> "MockConnection":
+    async def __aenter__(self) -> MockConnection:
         return self
 
     async def __aexit__(self, *args: Any) -> None:

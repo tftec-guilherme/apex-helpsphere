@@ -21,8 +21,8 @@ para a fonte default da Pillow se nenhuma estiver disponível.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -57,7 +57,7 @@ def _load_font(candidates: Sequence[str], size: int) -> ImageFont.ImageFont:
     for path in candidates:
         try:
             return ImageFont.truetype(path, size)
-        except (OSError, IOError):
+        except OSError:
             continue
     return ImageFont.load_default()
 
@@ -217,7 +217,7 @@ def generate_nfce_receipt(output_path: Path) -> None:
     y += 24
     draw.text((margin, y), f"DESCONTO    R$:    {0.00:8.2f}", font=body_font, fill=fg)
     y += 18
-    draw.text((margin, y), f"FORMA DE PAGTO: PIX QR Code", font=body_font, fill=fg)
+    draw.text((margin, y), "FORMA DE PAGTO: PIX QR Code", font=body_font, fill=fg)
     y += 24
 
     # Chave de acesso
