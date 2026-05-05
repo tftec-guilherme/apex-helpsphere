@@ -121,13 +121,9 @@ apex-helpsphere/
 
 | Doc | Quando ler |
 |---|---|
-| [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) | Quick start + 29 surpresas pedagógicas + checklist pré-requisitos |
-| [`DECISION-LOG.md`](./DECISION-LOG.md) | 23 decisões cravadas com contexto, alternativas avaliadas, anti-padrões rejeitados |
-| [`CHANGELOG.md`](./CHANGELOG.md) | Histórico de releases (v2.0.0 → v2.1.0) |
-| [`docs/plans/v2.1.0-execution.md`](./docs/plans/v2.1.0-execution.md) | Plano multiagent v2.1.0 (4 ondas, 11 subagents, ~6h wall-clock) |
-| [`docs/qa-gates/`](./docs/qa-gates/) | Verdicts QA por épico (PASS/CONCERNS/FAIL/WAIVED) |
+| [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) | Quick start + checklist de pré-requisitos + surpresas pedagógicas catalogadas |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Histórico de releases |
 | [`SECURITY.md`](./SECURITY.md) | Política de segurança e disclosure |
-| [`CHANGES.md`](./CHANGES.md) | Diff vs upstream `azure-search-openai-demo` |
 
 ## Roadmap pedagógico
 
