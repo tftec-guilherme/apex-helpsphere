@@ -2,9 +2,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import aioodbc
+if TYPE_CHECKING:
+    # Sessao 9.2 (Decisao #17 + TD-4 cleanup): _pool.py retorna
+    # MITokenConnectionFactory (substituto de aioodbc.Pool com API drop-in
+    # `acquire()`). Mantemos type hint como o factory real para o ty checker
+    # validar corretamente. Em runtime, qualquer objeto com `.acquire()` async
+    # context manager funciona (duck typing assegurado pelo MITokenConnectionFactory).
+    from ._pool import MITokenConnectionFactory
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TenantsRepository:
     """Repository para tenants Apex (lookup leve, baixa cardinalidade)."""
 
-    def __init__(self, pool: aioodbc.Pool):
+    def __init__(self, pool: MITokenConnectionFactory):
         self.pool = pool
 
     async def get_by_id(self, tenant_id: str) -> dict[str, Any] | None:

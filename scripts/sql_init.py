@@ -407,10 +407,17 @@ def main() -> int:
                     _run_sql_file(cur, seed_file)
                     table = table_for_seed[seed_name]
                     cur.execute(f"SELECT COUNT(*) FROM {table}")
-                    cnt = cur.fetchone()[0]
+                    # Sessao 9.2: COUNT(*) sempre retorna 1 row, mas ty checker
+                    # marca fetchone() como Optional[Row]. Assert + tuple deconstruction
+                    # silencia o checker e mantem fail-fast se algo absurdo acontecer.
+                    count_row = cur.fetchone()
+                    assert count_row is not None, f"COUNT(*) em {table} retornou None"
+                    cnt = count_row[0]
                     if seed_name == "tickets.sql":
                         cur.execute(f"SELECT MIN(ticket_id), MAX(ticket_id) FROM {table}")
-                        mn, mx = cur.fetchone()
+                        range_row = cur.fetchone()
+                        assert range_row is not None, f"MIN/MAX em {table} retornou None"
+                        mn, mx = range_row
                         print(f"  → {cnt} rows em {table} (ticket_id range: {mn}..{mx})")
                     else:
                         print(f"  → {cnt} rows em {table}")
