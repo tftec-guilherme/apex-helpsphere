@@ -105,18 +105,37 @@ azd down --purge
 
 Se algo der errado, antes de perguntar no fórum, dê uma olhada nestas lições aprendidas (todas com defesa arquitetural completa em [`DECISION-LOG.md`](./DECISION-LOG.md)):
 
+### Surpresas operacionais (Sessões 1-5)
+
 | # | Surpresa | Lição |
 |---|----------|-------|
 | **#1** | Free Trial USD 200 não roda Azure OpenAI | PAYG é mandatório. Não tente Free Trial — vai bloquear na quota. |
 | **#2** | `eastus2` sem capacidade SQL/Search em Q2-2026 | Use **`westus3`** ou **`brazilsouth`** para HelpSphere. East US 2 só pra Foundry Hub depois. |
-| **#3** | `pyodbc` 5.1.0 não compila em CPython 3.13 | Stack Python+ODBC+SQL+MI é frágil. **A Decisão #16 deste repo migrou tickets para .NET** justamente por isso. |
-| **#4** | `azd hooks` (preprovision/postprovision) **NÃO leem env vars do shell** | Eles leem só do `.azure/<env>/.env`. Use `azd env set` antes de provision para garantir hooks veem o que precisam. |
-| **#5** | Smoke test 30s pega container em state `Activating` | Cold start de gunicorn + token MI pode levar 1-3min. Use retry loop, não single-shot. |
+| **#3** | `pyodbc` 5.1.0 não compila em CPython 3.13 | Bump para `pyodbc==5.2.0` (tem wheel `cp313-cp313-manylinux`). Vide Decisão #14. |
+| **#4** | `azd hooks` (preprovision/postprovision) **NÃO leem env vars do shell** | Eles leem só do `.azure/<env>/.env`. Use `azd env set` antes de provision para garantir hooks veem o que precisam. Decisão #15. |
+| **#5** | Smoke test 30s pega container em state `Activating` | Cold start de gunicorn + token MI pode levar 1-3min. Use retry loop, não single-shot. Decisão #15. |
 | **#6** | "Backend MI tem acesso ao banco" ≠ least privilege real | Least privilege real é **9 grants object-level scoped a tabelas específicas**, verificável via `sys.database_permissions`. Decisão #16. |
-| **#7** | Endpoints deprecated devem retornar **HTTP 410 Gone** + `Link: rel="successor-version"` (RFC 8288) | É o padrão profissional. Não use 404 (silencioso) nem 301 (mantém keep-alive). |
-| **#8** | `git ls-files` ignora arquivos do `.gitignore` raiz mesmo em monorepos | Auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo. |
-| **#9** | Cognitive Services soft-deleted bloqueiam re-provisão por 90 dias | Use `RESTORE_COGNITIVE_SERVICES=true` no workflow OU sempre `azd down --purge`. |
+| **#7** | Endpoints deprecated devem retornar **HTTP 410 Gone** + `Link: rel="successor-version"` (RFC 8288) | É o padrão profissional. Não use 404 (silencioso) nem 301 (mantém keep-alive). Decisão #16. |
+| **#8** | `git ls-files` ignora arquivos do `.gitignore` raiz mesmo em monorepos | Auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo. Decisão #13. |
+| **#9** | Cognitive Services soft-deleted bloqueiam re-provisão por 90 dias | Use `RESTORE_COGNITIVE_SERVICES=true` no workflow OU sempre `azd down --purge`. Decisão #11. |
 | **#10** | Bicep AVM modules têm breaking changes não documentados | `bicep build` antes de PR (CodeRabbit não roda). Decisão #9. |
+
+### Surpresas first-run no laptop (Sessões 9.1-9.2)
+
+Estas surpresas só aparecem quando você roda `azd up` **na primeira vez no seu laptop** (vs no CI do GitHub Actions). Foram documentadas pelo professor durante a primeira execução real fora do CI.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#11** | `prepdocs.ps1` e `sql_init.ps1` com acentos UTF-8 quebram em Windows PowerShell 5 | `pwsh` (PS7) não está no PATH por default no Windows; `azd` faz fallback pra `powershell.exe` (PS5). PS5 lê UTF-8 sem BOM em locale pt-BR como cp1252 → "string sem terminador" em palavras com `é`, `ã`, `ç`. **Fix permanente:** scripts pwsh do template já estão em ASCII puro. Lição: se editar scripts, mantenha ASCII ou explicite encoding. |
+| **#12** | `sql_init.py` REVOKE falha em first-run | `ALTER ROLE db_datareader DROP MEMBER [backend-mi]` falha com 15151 porque o user MI ainda não foi criado no banco em first-run. **Fix permanente:** guard `IF DATABASE_PRINCIPAL_ID('{name}') IS NOT NULL` antes do ALTER ROLE. Lição: scripts de DB migration idempotentes precisam testar TANTO first-run QUANTO re-run. |
+| **#13** | `sql_init.py` GRANT antes de schema migration falha | Ordem original `CREATE USER + GRANT → migrations` falhava com 15151 ("Cannot find object tbl_tenants"). **Fix permanente:** `CREATE TABLE` ANTES de `CREATE USER` ANTES de `GRANT scoped`. Lição: ordering de migrations + grants é não-trivial. |
+| **#14** | ODBC Driver 18 + `Authentication=ActiveDirectoryMsi` + User-Assigned MI em Linux = `HYT00 Login timeout` | O driver não obtém token AAD corretamente do IMDS quando há UMI atribuída. **NÃO é bug de network/firewall** — é bug do driver. **Fix permanente (Decisão #17):** obter token via `azure.identity.ManagedIdentityCredential(client_id=AZURE_CLIENT_ID)` e injetar via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before` da pyodbc connection. Tickets-service .NET nunca teve o bug porque `Microsoft.Data.SqlClient` resolve UMI corretamente. |
+| **#15** | ODBC Driver 18 NÃO vem por default em Windows | Sintoma: `pyodbc.InterfaceError IM002 - Driver Manager - Nome da fonte de dados não encontrada`. **Solução:** `winget install --id Microsoft.msodbcsql.18 --silent --accept-package-agreements --accept-source-agreements`. |
+| **#16** | `az account set --subscription` se perde entre janelas PowerShell novas | Sintoma: comando `az` aleatoriamente retorna `ResourceGroupNotFound` mesmo quando o RG existe. **Solução:** sempre rodar `az account set --subscription <SUB_ID>` no início de cada nova sessão PowerShell. |
+| **#17** | ACA Outbound Static IP precisa estar no firewall do SQL Server (não basta `AllowAllAzureIPs`) | Sintoma: mesmo com `AllowAllAzureIPs` (0.0.0.0/0.0.0.0), Container App backend dá `HYT00 Login timeout`. **Solução:** descobrir o IP estático do ACA Environment e adicionar regra explícita: `az containerapp env show --query "properties.staticIp"` → `az sql server firewall-rule create --name "ACAOutboundIP" --start-ip-address $IP --end-ip-address $IP`. **Nota:** o template já configura essa regra automaticamente em `infra/main.bicep`. |
+| **#18** | Azure SQL Serverless `autoPauseDelay` causa cold-start de 30-60s | Se DB pausada, primeira request leva 30-60s para resumir. Backend Python com `Connection Timeout=30s` falhava no resume; tickets-service .NET tinha primeira request lenta. **Fix permanente (Decisão #18):** `autoPauseDelay = -1` no Bicep (DB sempre Online; trade-off ~$15-30/mês vs interrupção em demo gravada) + Connection Timeout 60s no DSN. Aluno em produção real pode reverter para 60min se aceitar o trade-off. |
+
+> **Total cravado:** 18 surpresas → 18 lições aprendidas → todas viraram fix permanente no template ou orientação aqui. Você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Isso é a essência do template "pré-pronto": absorver a complexidade real que ninguém documenta.
 
 ---
 
