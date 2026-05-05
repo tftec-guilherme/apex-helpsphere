@@ -1,4 +1,4 @@
-name: Python check
+name: 3. Testar Backend (Python)
 
 on:
   push:

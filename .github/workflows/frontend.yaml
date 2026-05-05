@@ -1,4 +1,4 @@
-name: Frontend linting
+name: 2. Lint Frontend (React)
 
 on:
   push:

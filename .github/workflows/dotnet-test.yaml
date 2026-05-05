@@ -1,4 +1,4 @@
-name: .NET tickets-service check
+name: 4. Testar Tickets (.NET)
 
 # HelpSphere — Story 06.5c.5 (Sessão 9.2)
 # Build + test do tickets-service .NET 10 a cada push/PR que toca o código.

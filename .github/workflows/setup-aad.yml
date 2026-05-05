@@ -1,4 +1,4 @@
-name: Setup AAD App Registrations
+name: Setup Azure AD (manual)
 
 # HelpSphere v2.1.0 (Sessão 9.5, Decisão #19) — workflow standalone para
 # (re)criar/atualizar as 2 App Registrations (helpsphere + helpsphere-client)

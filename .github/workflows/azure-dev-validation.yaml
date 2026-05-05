@@ -1,4 +1,4 @@
-name: Validate AZD template
+name: 1. Validar Bicep (IaC)
 on:
   push:
     branches: [ main ]

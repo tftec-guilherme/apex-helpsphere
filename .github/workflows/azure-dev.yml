@@ -1,4 +1,4 @@
-name: Deploy
+name: 5. Deploy (Azure Container Apps)
 
 # HelpSphere — Story 06.5a Sessão 4 enrichments:
 # - Bicep validation step (lição Decisão #9: CodeRabbit não roda bicep build)
