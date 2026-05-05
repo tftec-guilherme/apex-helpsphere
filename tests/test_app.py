@@ -77,9 +77,13 @@ async def test_index(client):
 
 @pytest.mark.asyncio
 async def test_redirect(client):
+    # v2.1.0 (Decisao #23): /redirect agora serve index.html (nao blank string)
+    # para suportar loginRedirect flow do MSAL — handleRedirectPromise() processa
+    # o hash #code=... no boot do React. Blank string quebrava o flow.
     response = await client.get("/redirect")
     assert response.status_code == 200
-    assert (await response.get_data()) == b""
+    body = await response.get_data()
+    assert b"<html" in body or body == b""  # HTML (default) OU empty (legacy compat)
 
 
 @pytest.mark.asyncio

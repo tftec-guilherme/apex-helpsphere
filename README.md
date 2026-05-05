@@ -50,14 +50,16 @@ azd up                           # ~9-14min
 
 ## Arquitetura
 
-![Arquitetura HelpSphere](./docs/architecture.png)
+![Arquitetura HelpSphere v2](./docs/architecture.png)
+
+> Diagrama renderizado a partir do HTML interativo `docs/helpsphere_architecture_v2.html` (Apex Executivo brand). Para navegar interativo, abra o HTML no browser.
 
 | Formato | Arquivo | Quando usar |
 |---|---|---|
-| **Diagrama editável** | [`docs/architecture.drawio`](./docs/architecture.drawio) | Edição via [draw.io](https://app.diagrams.net) ou desktop |
-| **PNG 2x retina** | [`docs/architecture.png`](./docs/architecture.png) | Embed em README, slides, docs |
-| **HTML interativo (v2)** | [`docs/helpsphere_architecture_v2.html`](./docs/helpsphere_architecture_v2.html) | Navegação pedagógica em apresentações |
-| **SVG** | [`docs/architecture.svg`](./docs/architecture.svg) | Web/scaling |
+| **HTML interativo (v2 — primário)** | [`docs/helpsphere_architecture_v2.html`](./docs/helpsphere_architecture_v2.html) | Navegação pedagógica em apresentações; clone + abra no browser |
+| **PNG 2x retina (renderizado do v2)** | [`docs/architecture.png`](./docs/architecture.png) | Embed em README, slides, docs |
+| **Diagrama draw.io editável (v1)** | [`docs/architecture.drawio`](./docs/architecture.drawio) | Edição via [draw.io](https://app.diagrams.net) ou desktop |
+| **SVG (v1)** | [`docs/architecture.svg`](./docs/architecture.svg) | Web/scaling |
 
 **7 camadas:** Edge · Apresentação · Container Apps Env · AI Platform · Identity · Observabilidade/DevOps · Persistence.
 
