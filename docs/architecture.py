@@ -169,12 +169,16 @@ def render(outformat: str = "png") -> None:
         spa >> Edge(label="VITE_API_TICKETS_URL", color=AZURE_BLUE) >> tickets
 
         # Deprecação (Decisão #16) — vermelho tracejado, RFC 8288
-        backend >> Edge(
-            label="410 Gone + Link\nrel=successor-version",
-            color=AZURE_RED,
-            style="dashed",
-            fontcolor=AZURE_RED,
-        ) >> tickets
+        (
+            backend
+            >> Edge(
+                label="410 Gone + Link\nrel=successor-version",
+                color=AZURE_RED,
+                style="dashed",
+                fontcolor=AZURE_RED,
+            )
+            >> tickets
+        )
 
         # ===============================================================
         # FLUXOS — MI auth (verde, com grants verificáveis nos labels)
@@ -182,19 +186,27 @@ def render(outformat: str = "png") -> None:
         backend >> Edge(label="MI", color=AZURE_GRAY, style="dotted") >> mi_backend
         tickets >> Edge(label="MI", color=AZURE_GRAY, style="dotted") >> mi_tickets
 
-        mi_backend >> Edge(
-            label="SELECT tbl_tenants\n(token via SQL_COPT_SS_ACCESS_TOKEN)",
-            color=AZURE_GREEN,
-            fontcolor=AZURE_GREEN,
-            penwidth="2",
-        ) >> sql
+        (
+            mi_backend
+            >> Edge(
+                label="SELECT tbl_tenants\n(token via SQL_COPT_SS_ACCESS_TOKEN)",
+                color=AZURE_GREEN,
+                fontcolor=AZURE_GREEN,
+                penwidth="2",
+            )
+            >> sql
+        )
 
-        mi_tickets >> Edge(
-            label="SELECT/INSERT/UPDATE/DELETE\ntbl_tickets + tbl_comments",
-            color=AZURE_GREEN,
-            fontcolor=AZURE_GREEN,
-            penwidth="2",
-        ) >> sql
+        (
+            mi_tickets
+            >> Edge(
+                label="SELECT/INSERT/UPDATE/DELETE\ntbl_tickets + tbl_comments",
+                color=AZURE_GREEN,
+                fontcolor=AZURE_GREEN,
+                penwidth="2",
+            )
+            >> sql
+        )
 
         # ===============================================================
         # FLUXOS — AI consumption (roxo tracejado, apenas backend)

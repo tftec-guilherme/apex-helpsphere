@@ -43,8 +43,12 @@ _REPO = Path("C:/Users/GuilhermePruxCampos/AppData/Local/Temp/azure-drawio-mcp")
 if _REPO.exists():
     sys.path.insert(0, str(_REPO))
 
-from azure_drawio_mcp_server.drawio_generator import generate_drawio_diagram
-from azure_drawio_mcp_server.models import (
+# Imports DEPOIS do sys.path.insert acima — E402 esperado neste padrao de
+# loading dynamic install path do uv tool.
+from azure_drawio_mcp_server.drawio_generator import (  # noqa: E402
+    generate_drawio_diagram,
+)
+from azure_drawio_mcp_server.models import (  # noqa: E402
     AzureResource,
     Connection,
     DiagramRequest,
