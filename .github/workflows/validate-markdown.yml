@@ -1,4 +1,9 @@
-name: Validate Markdown
+name: Markdown link/path check
+
+# Sessão 9.2 (limpeza workflow legado): renamed from "Validate Markdown" para
+# distinguir de lint-markdown.yml (que também era "Validate Markdown" no UI do GitHub).
+# Este workflow checa broken paths + URLs com locale + broken external URLs.
+# lint-markdown.yml roda markdownlint-cli2 (style/format).
 
 on:
   # Trigger the workflow on pull request

@@ -49,8 +49,8 @@ jobs:
           PSRULE_CONFIGURATION_AZURE_BICEP_FILE_EXPANSION: 'true'
           PSRULE_CONFIGURATION_AZURE_BICEP_FILE_EXPANSION_TIMEOUT: '30'
 
-      - name: Upload results to security tab
-        uses: github/codeql-action/upload-sarif@v4
-        if: github.repository == 'Azure-Samples/azure-search-openai-demo'
-        with:
-          sarif_file: reports/ps-rule-results.sarif
+      # NOTA Sessão 9.2 (limpeza workflow legado): step "Upload results to security tab"
+      # do upstream MS removido — tinha guard `if: github.repository == 'Azure-Samples/...'`
+      # que nunca executa em forks (apex-helpsphere). Era dead code visível no .yml.
+      # Para reativar GitHub Code Scanning aqui, remover o `if` e configurar permissões
+      # security-events: write (já presente no job) + Advanced Security no repo settings.
