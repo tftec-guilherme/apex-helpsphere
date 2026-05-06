@@ -1,0 +1,247 @@
+# ============================================================
+# 5b. Deploy SaaS-only (sem IA, sem role assignments)
+# ============================================================
+# Workflow especifico para subscriptions com ABAC condition que
+# bloqueia escalacao de Owner/UAA/RBAC Admin para Service Principal.
+#
+# Estrategia:
+#   1. SP cria App Registrations via Microsoft Graph (auth_init.py)
+#      — funciona porque SP tem Application.ReadWrite.All
+#   2. SP deploya infra Bicep com:
+#      - deployIaStack=false → sem OpenAI/Search/DocIntel/Vision/Speech/Cosmos
+#      - skipRoleAssignments=true → sem role assignments (ABAC blocked)
+#   3. Workflow OUTPUTA script PowerShell pronto para usuario rodar
+#      LOCAL com sua conta (Owner-with-ABAC) que cria os role
+#      assignments faltantes (roles non-Owner sao permitidos por ABAC)
+#
+# Vars necessarias (mesmo conjunto da 5. Deploy):
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#   AZURE_ENV_NAME, AZURE_LOCATION
+# ============================================================
+
+name: "5b. Deploy SaaS-only (sem IA + sem role assignments)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      destroy:
+        description: "Destruir RG apos deploy (cleanup)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+  AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+  AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
+  AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
+
+jobs:
+  preflight:
+    name: "🛫 Preflight"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login Azure (federated SP)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validar Bicep
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+      - name: Confirmar SP autenticado
+        run: |
+          az account show --query "{user:user.name, sub:name, tenant:tenantId}" -o yaml
+          echo "Preflight OK."
+
+  create-app-regs:
+    name: "🔐 Criar App Registrations (auth_init.py)"
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      server_app_id: ${{ steps.auth_init.outputs.server_app_id }}
+      client_app_id: ${{ steps.auth_init.outputs.client_app_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install auth_init dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install msgraph-sdk azure-identity
+
+      - name: Run auth_init.py (cria helpsphere + helpsphere-client)
+        id: auth_init
+        run: |
+          cd scripts
+          python auth_init.py 2>&1 | tee /tmp/auth_init.log
+
+          # Extrai server_app_id e client_app_id do log
+          SERVER_ID=$(grep -oP '"server_app_id"\s*:\s*"\K[^"]+' /tmp/auth_init.log | head -1)
+          CLIENT_ID=$(grep -oP '"client_app_id"\s*:\s*"\K[^"]+' /tmp/auth_init.log | head -1)
+
+          echo "server_app_id=$SERVER_ID" >> $GITHUB_OUTPUT
+          echo "client_app_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+
+          echo "::notice::Server App ID: $SERVER_ID"
+          echo "::notice::Client App ID: $CLIENT_ID"
+        env:
+          AZURE_USE_AUTHENTICATION: "true"
+          AZURE_AUTH_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+
+  deploy-infra:
+    name: "🚀 Deploy infra (sem role assignments)"
+    needs: create-app-regs
+    runs-on: ubuntu-latest
+    outputs:
+      rg_name: ${{ steps.set_rg.outputs.rg_name }}
+      backend_mi_id: ${{ steps.deploy.outputs.backend_mi_id }}
+      tickets_mi_id: ${{ steps.deploy.outputs.tickets_mi_id }}
+      storage_account: ${{ steps.deploy.outputs.storage_account }}
+      sql_server: ${{ steps.deploy.outputs.sql_server }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set RG name
+        id: set_rg
+        run: |
+          RG_NAME="rg-${{ vars.AZURE_ENV_NAME }}"
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
+
+      - name: Criar Resource Group
+        run: |
+          az group create \
+            --name "$RG_NAME" \
+            --location "${{ vars.AZURE_LOCATION }}" \
+            --tags course=D06 lab=helpsphere-saas managedBy=github-actions
+
+      - name: Deploy Bicep (deployIaStack=false + skipRoleAssignments=true)
+        id: deploy
+        run: |
+          az deployment group create \
+            --resource-group "$RG_NAME" \
+            --name "main" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters \
+              environmentName="${{ vars.AZURE_ENV_NAME }}" \
+              location="${{ vars.AZURE_LOCATION }}" \
+              deployIaStack=false \
+              skipRoleAssignments=true \
+              serverAppId="${{ needs.create-app-regs.outputs.server_app_id }}" \
+              clientAppId="${{ needs.create-app-regs.outputs.client_app_id }}"
+
+          # Captura outputs do deployment
+          OUTPUTS=$(az deployment group show -g "$RG_NAME" -n main --query properties.outputs -o json)
+
+          BACKEND_MI=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("backendIdentityPrincipalId",{}).get("value",""))' || echo "")
+          TICKETS_MI=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ticketsServiceIdentityPrincipalId",{}).get("value",""))' || echo "")
+          STORAGE=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("storageAccountName",{}).get("value",""))' || echo "")
+          SQL=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("sqlServerName",{}).get("value",""))' || echo "")
+
+          echo "backend_mi_id=$BACKEND_MI" >> $GITHUB_OUTPUT
+          echo "tickets_mi_id=$TICKETS_MI" >> $GITHUB_OUTPUT
+          echo "storage_account=$STORAGE" >> $GITHUB_OUTPUT
+          echo "sql_server=$SQL" >> $GITHUB_OUTPUT
+
+  generate-postdeploy-script:
+    name: "📜 Gerar script post-deploy (role assignments)"
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate script for user to run locally
+        run: |
+          cat > /tmp/post-deploy-roles.ps1 <<EOF
+          # ============================================================
+          # Script de role assignments — RODE LOCAL com SUA CONTA
+          # ============================================================
+          # CI nao consegue criar role assignments nesta subscription
+          # (ABAC condition bloqueia escalar SP para Owner/UAA/RBAC Admin).
+          #
+          # Voce (Owner-with-ABAC) PODE atribuir roles non-Owner.
+          # Rode este script localmente apos workflow concluir.
+          # ============================================================
+
+          \$RG_NAME = "${{ needs.deploy-infra.outputs.rg_name }}"
+          \$SUB_ID = "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+          \$BACKEND_MI = "${{ needs.deploy-infra.outputs.backend_mi_id }}"
+          \$TICKETS_MI = "${{ needs.deploy-infra.outputs.tickets_mi_id }}"
+          \$STORAGE = "${{ needs.deploy-infra.outputs.storage_account }}"
+          \$SQL_SERVER = "${{ needs.deploy-infra.outputs.sql_server }}"
+
+          Write-Host "Logando como SUA conta (Owner)..."
+          az login --tenant ${{ vars.AZURE_TENANT_ID }}
+          az account set --subscription \$SUB_ID
+
+          # Backend MI: Storage Blob Data Contributor no Storage
+          az role assignment create \`
+            --assignee-object-id \$BACKEND_MI \`
+            --assignee-principal-type ServicePrincipal \`
+            --role "Storage Blob Data Contributor" \`
+            --scope "/subscriptions/\$SUB_ID/resourceGroups/\$RG_NAME/providers/Microsoft.Storage/storageAccounts/\$STORAGE"
+
+          # Tickets MI: Storage Blob Data Reader no Storage
+          az role assignment create \`
+            --assignee-object-id \$TICKETS_MI \`
+            --assignee-principal-type ServicePrincipal \`
+            --role "Storage Blob Data Reader" \`
+            --scope "/subscriptions/\$SUB_ID/resourceGroups/\$RG_NAME/providers/Microsoft.Storage/storageAccounts/\$STORAGE"
+
+          Write-Host "Role assignments criados. Containers podem reiniciar para pegar novas perms:"
+          Write-Host "  az containerapp restart --name <backend> --resource-group \$RG_NAME"
+          Write-Host "  az containerapp restart --name <tickets> --resource-group \$RG_NAME"
+          EOF
+
+          echo "::notice::Script gerado em /tmp/post-deploy-roles.ps1"
+          cat /tmp/post-deploy-roles.ps1
+
+      - name: Upload script as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-role-assignments
+          path: /tmp/post-deploy-roles.ps1
+          retention-days: 7
+
+  destroy:
+    name: "🧹 Destroy"
+    if: github.event.inputs.destroy == 'true'
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete RG
+        run: az group delete --name "${{ needs.deploy-infra.outputs.rg_name }}" --yes --no-wait

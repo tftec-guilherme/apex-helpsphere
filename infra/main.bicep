@@ -170,6 +170,9 @@ param loadSeedData bool = true
 // =============================================================================
 @description('Deploy IA stack (OpenAI, AI Search, Doc Intel, Vision, Speech, Cosmos chat). Default false para SaaS-only.')
 param deployIaStack bool = false
+
+@description('Pular criacao de role assignments (Storage MI grants, SQL MI, etc.). Use true quando deploy roda como SP sem permissao roleAssignments/write (ABAC condition). Aluno cria role assignments manualmente apos deploy via script gerado.')
+param skipRoleAssignments bool = false
 param chatHistoryContainerName string = 'chat-history-v2'
 param chatHistoryVersion string = 'cosmosdb-v2'
 
@@ -1363,7 +1366,7 @@ module speechRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   }
 }
 
-module storageRoleUser 'core/security/role.bicep' = {
+module storageRoleUser 'core/security/role.bicep' = if (!skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-role-user'
   params: {
@@ -1373,7 +1376,7 @@ module storageRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module storageContribRoleUser 'core/security/role.bicep' = {
+module storageContribRoleUser 'core/security/role.bicep' = if (!skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-contrib-role-user'
   params: {
@@ -1383,7 +1386,7 @@ module storageContribRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module storageOwnerRoleUser 'core/security/role.bicep' = if (useUserUpload) {
+module storageOwnerRoleUser 'core/security/role.bicep' = if (useUserUpload && !skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-owner-role-user'
   params: {
@@ -1481,7 +1484,7 @@ module visionRoleSearchService 'core/security/role.bicep' = if (useMultimodal &&
   }
 }
 
-module storageRoleBackend 'core/security/role.bicep' = {
+module storageRoleBackend 'core/security/role.bicep' = if (!skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-role-backend'
   params: {
@@ -1493,7 +1496,7 @@ module storageRoleBackend 'core/security/role.bicep' = {
   }
 }
 
-module storageOwnerRoleBackend 'core/security/role.bicep' = if (useUserUpload) {
+module storageOwnerRoleBackend 'core/security/role.bicep' = if (useUserUpload && !skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-owner-role-backend'
   params: {
@@ -1541,7 +1544,7 @@ module adlsStorageRoleSearchService 'core/security/storage-role.bicep' = if (use
 }
 
 // Storage Blob Data Owner on ADLS storage for user to manage ACLs
-module adlsStorageOwnerRoleUser 'core/security/storage-role.bicep' = if (useCloudIngestionAcls) {
+module adlsStorageOwnerRoleUser 'core/security/storage-role.bicep' = if (useCloudIngestionAcls && deployIaStack && !skipRoleAssignments) {
   scope: adlsStorageResourceGroup
   name: 'adls-storage-owner-role-user'
   params: {
@@ -1556,7 +1559,7 @@ module adlsStorageOwnerRoleUser 'core/security/storage-role.bicep' = if (useClou
 // Note: This module requires useCloudIngestion=true because it references functions!.outputs.principalId.
 // If useCloudIngestionAcls=true but useCloudIngestion=false, deployment will fail.
 // Documentation states USE_CLOUD_INGESTION_ACLS requires USE_CLOUD_INGESTION to be true.
-module adlsStorageRoleFunctions 'core/security/storage-role.bicep' = if (useCloudIngestionAcls && useCloudIngestion) {
+module adlsStorageRoleFunctions 'core/security/storage-role.bicep' = if (useCloudIngestionAcls && useCloudIngestion && deployIaStack && !skipRoleAssignments) {
   scope: adlsStorageResourceGroup
   name: 'adls-storage-role-functions'
   params: {
@@ -1568,7 +1571,7 @@ module adlsStorageRoleFunctions 'core/security/storage-role.bicep' = if (useClou
 }
 
 // Necessary for the Container Apps backend to store authentication tokens in the blob storage container
-module storageRoleContributorBackend 'core/security/role.bicep' = if (deploymentTarget == 'containerapps' && !empty(clientAppId)) {
+module storageRoleContributorBackend 'core/security/role.bicep' = if (deploymentTarget == 'containerapps' && !empty(clientAppId) && !skipRoleAssignments) {
   scope: storageResourceGroup
   name: 'storage-role-contributor-aca-backend'
   params: {
