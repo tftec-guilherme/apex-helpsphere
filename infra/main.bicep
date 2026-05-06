@@ -1061,7 +1061,7 @@ module searchService 'core/search/search-services.bicep' = if (deployIaStack) {
   }
 }
 
-module searchDiagnostics 'core/search/search-diagnostics.bicep' = if (useApplicationInsights) {
+module searchDiagnostics 'core/search/search-diagnostics.bicep' = if (useApplicationInsights && deployIaStack) {
   name: 'search-diagnostics'
   scope: searchServiceResourceGroup
   params: {
@@ -1139,7 +1139,7 @@ resource existingAdlsStorage 'Microsoft.Storage/storageAccounts@2023-05-01' exis
 
 // ADLS Gen2 storage account for cloud ingestion with ACL support
 // Only provision if using cloud ingestion ACLs AND not using an existing ADLS account
-module adlsStorage 'core/storage/storage-account.bicep' = if (useCloudIngestionAcls && !useExistingAdlsStorage) {
+module adlsStorage 'core/storage/storage-account.bicep' = if (useCloudIngestionAcls && !useExistingAdlsStorage && deployIaStack) {
   name: 'adls-storage'
   scope: storageResourceGroup
   params: {
@@ -1529,7 +1529,7 @@ module storageRoleContributorSearchService 'core/security/role.bicep' = if ((use
 // ADLS Gen2 storage role assignments for cloud ingestion with ACLs
 // These are scoped to the ADLS storage account itself, so they work for both
 // provisioned and bring-your-own (BYO) ADLS storage accounts
-module adlsStorageRoleSearchService 'core/security/storage-role.bicep' = if (useCloudIngestionAcls && searchServiceSkuName != 'free') {
+module adlsStorageRoleSearchService 'core/security/storage-role.bicep' = if (useCloudIngestionAcls && searchServiceSkuName != 'free' && deployIaStack) {
   scope: adlsStorageResourceGroup
   name: 'adls-storage-role-searchservice'
   params: {
