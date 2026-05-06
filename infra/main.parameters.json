@@ -5,6 +5,12 @@
     "environmentName": {
       "value": "${AZURE_ENV_NAME}"
     },
+    "deployIaStack": {
+      "value": "${DEPLOY_IA_STACK=false}"
+    },
+    "skipRoleAssignments": {
+      "value": "${SKIP_ROLE_ASSIGNMENTS=false}"
+    },
     "resourceGroupName": {
       "value": "${AZURE_RESOURCE_GROUP}"
     },
