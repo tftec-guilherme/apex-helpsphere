@@ -38,22 +38,64 @@ No seu fork → aba **Actions** → botão **"I understand my workflows, go ahea
 
 ### 3. Criar o Service Principal federated (1 vez)
 
-Cole no Cloud Shell ou terminal local com `az` logado:
+Escolha sua plataforma. **PowerShell é recomendado para Windows** (todos os exemplos foram testados em PS5+ e PS7).
+
+#### 3a. PowerShell (Windows / pwsh)
+
+```powershell
+# 1) Configure as 2 variaveis de entrada
+$GITHUB_USER = "SEU_USUARIO_GITHUB"
+$SUB_ID = (az account show --query id -o tsv)
+$TENANT_ID = (az account show --query tenantId -o tsv)
+
+# 2) Cria App Registration + Service Principal companion
+$SP_NAME = "sp-apex-helpsphere-$GITHUB_USER"
+$APP_OUTPUT = (az ad app create --display-name $SP_NAME --query "{appId:appId, id:id}" -o json) | ConvertFrom-Json
+$APP_ID = $APP_OUTPUT.appId
+$APP_OBJECT_ID = $APP_OUTPUT.id
+az ad sp create --id $APP_ID | Out-Null
+
+# 3) Federated credential (GitHub Actions OIDC)
+$fedJson = @"
+{
+  "name": "github-$GITHUB_USER-main",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:$GITHUB_USER/apex-helpsphere:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+"@
+$fedJson | Out-File -FilePath "$env:TEMP\fed.json" -Encoding utf8
+az ad app federated-credential create --id $APP_OBJECT_ID --parameters "@$env:TEMP\fed.json"
+
+# 4) Role assignment — Contributor (sempre permitido por ABAC, ver aviso abaixo)
+az role assignment create --assignee $APP_ID --role "Contributor" --scope "/subscriptions/$SUB_ID"
+
+# 5) Microsoft Graph Application.ReadWrite.All + admin consent
+az ad app permission add --id $APP_ID --api 00000003-0000-0000-c000-000000000000 --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
+az ad app permission admin-consent --id $APP_ID
+
+# 6) Imprime os 3 IDs pra colar nas Variables do fork
+Write-Host ""
+Write-Host "AZURE_CLIENT_ID=$APP_ID"
+Write-Host "AZURE_TENANT_ID=$TENANT_ID"
+Write-Host "AZURE_SUBSCRIPTION_ID=$SUB_ID"
+```
+
+#### 3b. Bash (Linux / macOS / WSL / Cloud Shell)
 
 ```bash
-# Substitua os 2 valores abaixo
-GITHUB_USER="SEU_USUARIO"
+GITHUB_USER="SEU_USUARIO_GITHUB"
 SUB_ID=$(az account show --query id -o tsv)
 TENANT_ID=$(az account show --query tenantId -o tsv)
-
-# Cria App Registration + Service Principal
 SP_NAME="sp-apex-helpsphere-${GITHUB_USER}"
+
+# 1) App + SP
 APP_OUTPUT=$(az ad app create --display-name "$SP_NAME" --query "{appId:appId, id:id}" -o json)
 APP_ID=$(echo $APP_OUTPUT | jq -r '.appId')
 APP_OBJECT_ID=$(echo $APP_OUTPUT | jq -r '.id')
 az ad sp create --id "$APP_ID" > /dev/null
 
-# Federated credential (GitHub Actions OIDC)
+# 2) Federated credential
 cat > /tmp/fed.json <<EOF
 {
   "name": "github-${GITHUB_USER}-main",
@@ -64,19 +106,47 @@ cat > /tmp/fed.json <<EOF
 EOF
 az ad app federated-credential create --id "$APP_OBJECT_ID" --parameters @/tmp/fed.json
 
-# Grants do SP
-az role assignment create --assignee "$APP_ID" --role "Owner" --scope "/subscriptions/$SUB_ID"
+# 3) Role + Graph perm + consent
+az role assignment create --assignee "$APP_ID" --role "Contributor" --scope "/subscriptions/$SUB_ID"
 az ad app permission add --id "$APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
 az ad app permission admin-consent --id "$APP_ID"
 
-# Imprime os 3 valores que você precisa colar no GitHub
+# 4) Print
 echo ""
 echo "AZURE_CLIENT_ID=$APP_ID"
 echo "AZURE_TENANT_ID=$TENANT_ID"
 echo "AZURE_SUBSCRIPTION_ID=$SUB_ID"
 ```
 
-⏳ ~30 segundos. Saída imprime os 3 IDs.
+#### ⚠️ 3 avisos importantes (lições da Sessão 9.7)
+
+**1. ABAC condition em conta `live.com`:** Se você está logado com conta `live.com#email@dominio.com` (Visual Studio Enterprise pessoal), seu Owner tem ABAC condition que **bloqueia atribuir Owner / User Access Administrator / RBAC Administrator**. **Por isso o script usa `Contributor`** — não troque para `Owner` mesmo se a doc Microsoft sugerir.
+
+**2. Admin consent precisa Global Admin:** O `permission admin-consent` requer que VOCÊ seja **Global Admin** ou **Cloud Application Administrator** no tenant. Se não for:
+- Peça para um admin do tenant rodar este comando, OU
+- Faça via Portal: Entra ID → App registrations → buscar `sp-apex-helpsphere-*` → API permissions → **Grant admin consent for {tenant}**
+
+**3. Workflow tem preflight com auto-fix:** Se este script falhar no meio (ex: rede caiu na criação do SP companion), App Registrations órfãs ficam no tenant. **Não precisa rodar o script de novo.** Workflow `5. Deploy` tem **preflight Check 6** que detecta órfãs e cria SPs automaticamente. Você pode pular direto para o passo 5.
+
+#### 🔬 Validação (opcional, recomendado antes de configurar Variables)
+
+```powershell
+# Confirma SP criado
+az ad sp show --id $APP_ID --query "{name:displayName, appId:appId}" -o table
+
+# Confirma Contributor na sub
+az role assignment list --assignee $APP_ID --scope "/subscriptions/$SUB_ID" --query "[].roleDefinitionName" -o tsv
+
+# Confirma Graph perm + admin consent
+az ad app permission list-grants --id $APP_ID --output table
+```
+
+**Esperado:**
+- SP existe com nome `sp-apex-helpsphere-{USER}`
+- Role list contém `Contributor`
+- Permission list mostra `Microsoft Graph` com scope contendo `Application.ReadWrite.All`
+
+⏳ Tudo isso é **uma vez na vida do tenant**. Próxima execução do workflow vai consumir esses recursos.
 
 ### 4. Configurar 5 Variables no fork
 

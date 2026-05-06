@@ -60,6 +60,22 @@ Estas surpresas só aparecem quando você faz o **primeiro login real no browser
 
 ---
 
+---
+
+## Surpresas first-bootstrap em conta `live.com` / Visual Studio Enterprise (Sessão 9.7)
+
+Estas surpresas só aparecem quando você é o **primeiro a rodar o bootstrap** do template em uma conta pessoal Microsoft (`live.com#email@dominio.com`) com subscription Visual Studio Enterprise. Documentadas durante recording da disciplina em 2026-05-06 — todas têm fix automático no preflight do workflow `5. Deploy`.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#30** | Bootstrap script em Bash não roda em PowerShell. Sintaxe `VAR="valor"`, `$()` substitution, `cat <<EOF`, `> /dev/null` e `jq` são Bash-only — PS retorna `not recognized as a name of a cmdlet` | Toda doc bootstrap precisa de **2 versões: PowerShell + Bash**. PS usa `$VAR = "valor"`, `(comando)` em paréntese, `@"..."@` here-string, `Out-Null` em vez de `/dev/null`, `ConvertFrom-Json` em vez de `jq`. **Fix permanente:** PARA-O-ALUNO Step 3 tem ambas versões lado-a-lado. |
+| **#31** | Conta `live.com` Owner tem ABAC condition que **bloqueia atribuir Owner / User Access Administrator / RBAC Administrator** (3 GUIDs específicos). Comando `az role assignment create --role Owner` retorna `AuthorizationFailed: ABAC condition that is not fulfilled` | Microsoft adicionou ABAC default em subscriptions Visual Studio Enterprise para **prevenir self-elevation acidental**. Owner/UAA/RBAC Admin ficam restritos ao próprio user. **Fix permanente:** scripts e workflows usam `Contributor` (que ABAC permite) em vez de Owner. Com Contributor, role assignments dentro do template falham — solução é dar `User Access Administrator` no escopo do RG específico, OU rodar em sub TFTEC sem ABAC. |
+| **#32** | App Registration criada sem Service Principal companion (404 ao referenciar). `az ad app create` cria APENAS a App Reg; o SP precisa ser criado separadamente via `az ad sp create --id <appId>`. Se script falhar entre os 2 passos, App fica órfã | Bug não-óbvio. Pior cenário: script falha no `sp create` (rede), próxima execução re-encontra a App existente, assume que SP existe, quebra com 404 ao tentar acessar SP. **Fix permanente (preflight Check 6):** workflow detecta App Regs `helpsphere`/`helpsphere-client` sem SP e **AUTO-CRIA** o SP companion via `az ad sp create`. Aluno não vê o erro. |
+| **#33** | Cache de auth do `az` CLI e do `azd` CLI **vivem separados** — `az login` em um tenant não muda o cache MSAL do `azd`. `az account show` retorna tenant correto, mas `azd provision` falha com "fetching current principal id" | `azd` usa MSAL próprio (não Azure CLI por default). **Fix:** `$env:AZD_AUTH_USE_AZCLI_AUTH = "true"` força `azd` reusar token do `az`. **Mais seguro:** sempre rodar `azd auth login --tenant-id <ID>` explicitamente no início. |
+| **#34** | SP federated criado mas SEM role assignment na subscription. `azd provision` falha com `failed getting subscription` antes de qualquer Bicep. Causa: comando anterior `az role assignment create --role Owner` falhou silenciosamente (ABAC #31), script não verificou exit code | Antes de `azd provision`, **SP precisa de pelo menos `Contributor` na sub**. **Fix permanente (preflight Check 3):** workflow valida e falha cedo com mensagem `az role assignment create --assignee <SP> --role Contributor --scope /subscriptions/<SUB>`. |
+
+---
+
 ## Política de revisão
 
 Quando uma nova surpresa for descoberta em produção:
@@ -69,4 +85,6 @@ Quando uma nova surpresa for descoberta em produção:
 3. Bumpar contador no [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) e [`README.md`](./README.md)
 4. Tag de release nova (semver)
 
-> **Total atual:** 29 surpresas → 29 fixes permanentes no template.
+> **Total atual:** 34 surpresas → 34 fixes permanentes no template (29 do v2.1.0 + 5 da Sessão 9.7 first-bootstrap em conta pessoal).
+>
+> **Auto-fix em preflight (workflow `5. Deploy`):** 1 das 5 novas (#32 App Reg sem SP) é detectada e corrigida automaticamente pelo Check 6. Outras 4 (#30 PS vs Bash, #31 ABAC, #33 azd cache, #34 SP sem role) precisam de ação manual com comando exato fornecido pelo preflight.
