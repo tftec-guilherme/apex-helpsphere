@@ -37,7 +37,197 @@ permissions:
   contents: read
 
 jobs:
+  # ============================================================
+  # PREFLIGHT — valida pre-requisitos antes de tentar deploy
+  # ============================================================
+  # Captura os 8 gotchas mais comuns na primeira execucao em fork de aluno:
+  #   1. 5 vars do GitHub configuradas
+  #   2. Federated SP autentica
+  #   3. SP tem role (Contributor+) na subscription
+  #   4. SP tem Microsoft Graph Application.ReadWrite.All com admin consent
+  #   5. AAD SQL Admin group existe (se configurado)
+  #   6. App Registrations helpsphere/helpsphere-client tem SP companion
+  #      (caso de execucao parcial anterior — fix do 09744db2 issue)
+  #   7. Bicep templates compilam
+  #   8. azd CLI consegue ler subscription
+  #
+  # Cada falha imprime ::error:: com comando exato de fix.
+  # ============================================================
+  preflight:
+    name: "🛫 Preflight (validar pre-requisitos)"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
+      AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ─── Check 1: 5 vars obrigatorias ──────────────────────
+      - name: "✅ Check 1/8 — 5 GitHub Variables configuradas"
+        run: |
+          MISSING=""
+          [ -z "$AZURE_CLIENT_ID" ] && MISSING="$MISSING AZURE_CLIENT_ID"
+          [ -z "$AZURE_TENANT_ID" ] && MISSING="$MISSING AZURE_TENANT_ID"
+          [ -z "$AZURE_SUBSCRIPTION_ID" ] && MISSING="$MISSING AZURE_SUBSCRIPTION_ID"
+          [ -z "$AZURE_ENV_NAME" ] && MISSING="$MISSING AZURE_ENV_NAME"
+          [ -z "$AZURE_LOCATION" ] && MISSING="$MISSING AZURE_LOCATION"
+
+          if [ -n "$MISSING" ]; then
+            echo "::error title=Variables faltando::Variaveis nao configuradas:$MISSING"
+            echo "::error::Fix: GitHub fork → Settings → Secrets and variables → Actions → Variables tab → New repository variable"
+            echo "::error::As 5 vars obrigatorias: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_ENV_NAME, AZURE_LOCATION"
+            exit 1
+          fi
+          echo "Todas as 5 vars estao configuradas."
+
+      # ─── Check 2: Login Azure (federated OIDC) ─────────────
+      - name: "✅ Check 2/8 — Federated SP autentica"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # ─── Check 3: SP tem role na subscription ──────────────
+      - name: "✅ Check 3/8 — SP tem role na subscription"
+        run: |
+          ROLE_COUNT=$(az role assignment list \
+            --assignee "$AZURE_CLIENT_ID" \
+            --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID" \
+            --query "length([?roleDefinitionName=='Contributor' || roleDefinitionName=='Owner'])" \
+            -o tsv 2>/dev/null || echo "0")
+
+          if [ "$ROLE_COUNT" = "0" ]; then
+            echo "::error title=SP sem role::SP $AZURE_CLIENT_ID nao tem Contributor/Owner na subscription $AZURE_SUBSCRIPTION_ID"
+            echo "::error::Fix (rode local com az logado como admin do tenant):"
+            echo "::error::  az role assignment create --assignee $AZURE_CLIENT_ID --role Contributor --scope /subscriptions/$AZURE_SUBSCRIPTION_ID"
+            echo "::error::Aguarde 60-120s para propagacao + re-trigger workflow."
+            exit 1
+          fi
+          echo "SP tem role na subscription ($ROLE_COUNT role(s) Contributor/Owner)."
+
+      # ─── Check 4: Microsoft Graph Application.ReadWrite.All ──
+      - name: "✅ Check 4/8 — Microsoft Graph Application.ReadWrite.All com admin consent"
+        run: |
+          SP_OBJECT_ID=$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv 2>/dev/null)
+
+          if [ -z "$SP_OBJECT_ID" ]; then
+            echo "::error::Service Principal para App $AZURE_CLIENT_ID nao existe"
+            echo "::error::Fix: az ad sp create --id $AZURE_CLIENT_ID"
+            exit 1
+          fi
+
+          # Microsoft Graph appId = 00000003-0000-0000-c000-000000000000
+          GRAPH_SP_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+
+          # Application.ReadWrite.All appRoleId = 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9
+          GRANT_COUNT=$(az rest \
+            --method GET \
+            --url "https://graph.microsoft.com/v1.0/servicePrincipals/$SP_OBJECT_ID/appRoleAssignments" \
+            --query "length(value[?appRoleId=='1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9' && resourceId=='$GRAPH_SP_ID'])" \
+            -o tsv 2>/dev/null || echo "0")
+
+          if [ "$GRANT_COUNT" = "0" ]; then
+            echo "::error title=Microsoft Graph perm faltando::SP nao tem Application.ReadWrite.All com admin consent"
+            echo "::error::auth_init.py vai falhar com 403 'Insufficient privileges' ao criar App Registrations"
+            echo "::error::Fix (rode local com az logado como Global Admin do tenant):"
+            echo "::error::  az ad app permission add --id $AZURE_CLIENT_ID --api 00000003-0000-0000-c000-000000000000 --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role"
+            echo "::error::  az ad app permission admin-consent --id $AZURE_CLIENT_ID"
+            exit 1
+          fi
+          echo "Microsoft Graph Application.ReadWrite.All concedido ($GRANT_COUNT grant(s))."
+
+      # ─── Check 5: AAD SQL Admin group existe ──────────────
+      - name: "✅ Check 5/8 — AAD SQL Admin group existe"
+        run: |
+          if [ -z "$AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID" ]; then
+            echo "AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID nao configurado — skip check (template SQL pode falhar)."
+            exit 0
+          fi
+
+          GROUP_NAME=$(az ad group show --group "$AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID" --query displayName -o tsv 2>/dev/null || echo "")
+
+          if [ -z "$GROUP_NAME" ]; then
+            echo "::error title=AAD group nao existe::Group $AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID nao foi encontrada no tenant"
+            echo "::error::Fix: criar a group OU atualizar var AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID:"
+            echo "::error::  az ad group create --display-name '${AZURE_SQL_AAD_ADMIN_GROUP_NAME:-aad-helpsphere-sql-admins}' --mail-nickname '${AZURE_SQL_AAD_ADMIN_GROUP_NAME:-aad-helpsphere-sql-admins}'"
+            echo "::error::Depois cole o novo Object ID na var AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID."
+            exit 1
+          fi
+          echo "AAD group existe: $GROUP_NAME ($AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID)"
+
+      # ─── Check 6: App Registrations sem SP companion (AUTO-FIX) ──
+      - name: "✅ Check 6/8 — App Registrations helpsphere/client tem SP companion (auto-fix)"
+        run: |
+          FIXED=0
+          for APP_NAME in "helpsphere" "helpsphere-client"; do
+            APP_IDS=$(az ad app list --display-name "$APP_NAME" --query "[].appId" -o tsv 2>/dev/null || echo "")
+
+            if [ -z "$APP_IDS" ]; then
+              echo "  $APP_NAME: nao existe ainda (auth_init.py vai criar)"
+              continue
+            fi
+
+            for APP_ID in $APP_IDS; do
+              SP_EXISTS=$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || echo "")
+              if [ -z "$SP_EXISTS" ]; then
+                echo "::warning title=App Reg orfa detectada::$APP_NAME ($APP_ID) sem SP — AUTO-FIX em andamento..."
+                if az ad sp create --id "$APP_ID" 2>&1; then
+                  echo "::notice::SP criado para $APP_NAME ($APP_ID)"
+                  FIXED=$((FIXED + 1))
+                else
+                  echo "::error title=Auto-fix falhou::Nao consegui criar SP para $APP_NAME ($APP_ID)"
+                  echo "::error::Verifique se SP federado tem Microsoft Graph Application.ReadWrite.All com admin consent"
+                  exit 1
+                fi
+              else
+                echo "  $APP_NAME ($APP_ID): OK (App + SP existem)"
+              fi
+            done
+          done
+
+          if [ "$FIXED" -gt 0 ]; then
+            echo "::notice::Auto-fix concluiu: $FIXED SP(s) criados. Aguardando 15s pra propagacao..."
+            sleep 15
+          fi
+          echo "Check 6 OK."
+
+      # ─── Check 7: Bicep templates compilam ────────────────
+      - name: "✅ Check 7/8 — Bicep templates compilam"
+        run: |
+          if [ -f "infra/main.bicep" ]; then
+            az bicep build --file infra/main.bicep --stdout > /tmp/main-arm.json 2>&1 || (cat /tmp/main-arm.json && echo "::error::Bicep main.bicep nao compila — corrija sintaxe" && exit 1)
+            echo "infra/main.bicep compila."
+          else
+            echo "infra/main.bicep nao encontrado — skip."
+          fi
+
+      # ─── Check 8: azd consegue ler subscription ────────────
+      - name: "✅ Check 8/8 — azd consegue ler subscription"
+        run: |
+          az account show --subscription "$AZURE_SUBSCRIPTION_ID" --query "{name:name, id:id, tenantId:tenantId, state:state}" -o yaml
+          if [ $? -ne 0 ]; then
+            echo "::error::az account show falhou — token pode estar com scope errado"
+            exit 1
+          fi
+          echo "Subscription $AZURE_SUBSCRIPTION_ID acessivel."
+
+      # ─── Summary ───────────────────────────────────────────
+      - name: "🎉 Preflight passou — tudo OK pra deploy"
+        run: |
+          echo "::notice title=Preflight OK::Todas as 8 checagens passaram. Build job vai iniciar agora."
+
   build:
+    needs: preflight
     runs-on: ubuntu-latest
     env:
       # azd required
