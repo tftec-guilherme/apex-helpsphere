@@ -1,508 +1,247 @@
-name: 5. Deploy (Azure Container Apps)
+# ============================================================
+# 5b. Deploy SaaS-only (sem IA, sem role assignments)
+# ============================================================
+# Workflow especifico para subscriptions com ABAC condition que
+# bloqueia escalacao de Owner/UAA/RBAC Admin para Service Principal.
+#
+# Estrategia:
+#   1. SP cria App Registrations via Microsoft Graph (auth_init.py)
+#      — funciona porque SP tem Application.ReadWrite.All
+#   2. SP deploya infra Bicep com:
+#      - deployIaStack=false → sem OpenAI/Search/DocIntel/Vision/Speech/Cosmos
+#      - skipRoleAssignments=true → sem role assignments (ABAC blocked)
+#   3. Workflow OUTPUTA script PowerShell pronto para usuario rodar
+#      LOCAL com sua conta (Owner-with-ABAC) que cria os role
+#      assignments faltantes (roles non-Owner sao permitidos por ABAC)
+#
+# Vars necessarias (mesmo conjunto da 5. Deploy):
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#   AZURE_ENV_NAME, AZURE_LOCATION
+# ============================================================
 
-# HelpSphere — Story 06.5a Sessão 4 enrichments:
-# - Bicep validation step (lição Decisão #9: CodeRabbit não roda bicep build)
-# - Smoke test pós-deploy (S4.F)
-# - Cleanup workflow_dispatch input (S4.I)
-# - Env vars custom HelpSphere (SQL, Vision, multimodal, seed data)
-# Workflow original: Azure-Samples/azure-search-openai-demo @ SHA 95ce0c9...
+name: "5. Deploy (Azure Container Apps)"
 
 on:
   workflow_dispatch:
     inputs:
       destroy:
-        description: 'Destruir recursos após deploy (azd down --purge)'
+        description: "Destruir RG apos deploy (cleanup)"
         required: false
         default: false
         type: boolean
-      skip_smoke:
-        description: 'Pular smoke test pós-deploy'
-        required: false
-        default: false
-        type: boolean
-  # Trigger automatico em push REMOVIDO — apex-helpsphere e SaaS base
-  # (sem IA). Deploy so via workflow_dispatch (Run workflow manual).
-  # IA stack provisiona-se nos labs Inter/Final/Avancado, passo-a-passo
-  # no Portal Azure (guias em Disciplina_06_*/01_Aulas/Lab_*_Guia_Portal.md).
 
-# GitHub Actions workflow to deploy to Azure using azd
-# To configure required secrets for connecting to Azure, simply run `azd pipeline config`
-
-# Set up permissions for deploying with secretless Azure federated credentials
-# https://learn.microsoft.com/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
 permissions:
   id-token: write
   contents: read
 
+env:
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+  AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+  AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
+  AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
+
 jobs:
-  # ============================================================
-  # PREFLIGHT — valida pre-requisitos antes de tentar deploy
-  # ============================================================
-  # Captura os 8 gotchas mais comuns na primeira execucao em fork de aluno:
-  #   1. 5 vars do GitHub configuradas
-  #   2. Federated SP autentica
-  #   3. SP tem role (Contributor+) na subscription
-  #   4. SP tem Microsoft Graph Application.ReadWrite.All com admin consent
-  #   5. AAD SQL Admin group existe (se configurado)
-  #   6. App Registrations helpsphere/helpsphere-client tem SP companion
-  #      (caso de execucao parcial anterior — fix do 09744db2 issue)
-  #   7. Bicep templates compilam
-  #   8. azd CLI consegue ler subscription
-  #
-  # Cada falha imprime ::error:: com comando exato de fix.
-  # ============================================================
   preflight:
-    name: "🛫 Preflight (validar pre-requisitos)"
+    name: "🛫 Preflight"
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    env:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
-      AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ─── Check 1: 5 vars obrigatorias ──────────────────────
-      - name: "✅ Check 1/8 — 5 GitHub Variables configuradas"
-        run: |
-          MISSING=""
-          [ -z "$AZURE_CLIENT_ID" ] && MISSING="$MISSING AZURE_CLIENT_ID"
-          [ -z "$AZURE_TENANT_ID" ] && MISSING="$MISSING AZURE_TENANT_ID"
-          [ -z "$AZURE_SUBSCRIPTION_ID" ] && MISSING="$MISSING AZURE_SUBSCRIPTION_ID"
-          [ -z "$AZURE_ENV_NAME" ] && MISSING="$MISSING AZURE_ENV_NAME"
-          [ -z "$AZURE_LOCATION" ] && MISSING="$MISSING AZURE_LOCATION"
-
-          if [ -n "$MISSING" ]; then
-            echo "::error title=Variables faltando::Variaveis nao configuradas:$MISSING"
-            echo "::error::Fix: GitHub fork → Settings → Secrets and variables → Actions → Variables tab → New repository variable"
-            echo "::error::As 5 vars obrigatorias: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_ENV_NAME, AZURE_LOCATION"
-            exit 1
-          fi
-          echo "Todas as 5 vars estao configuradas."
-
-      # ─── Check 2: Login Azure (federated OIDC) ─────────────
-      - name: "✅ Check 2/8 — Federated SP autentica"
+      - name: Login Azure (federated SP)
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # ─── Check 3: SP tem role na subscription ──────────────
-      - name: "✅ Check 3/8 — SP tem role na subscription"
+      - name: Validar Bicep
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+      - name: Confirmar SP autenticado
         run: |
-          ROLE_COUNT=$(az role assignment list \
-            --assignee "$AZURE_CLIENT_ID" \
-            --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID" \
-            --query "length([?roleDefinitionName=='Contributor' || roleDefinitionName=='Owner'])" \
-            -o tsv 2>/dev/null || echo "0")
+          az account show --query "{user:user.name, sub:name, tenant:tenantId}" -o yaml
+          echo "Preflight OK."
 
-          if [ "$ROLE_COUNT" = "0" ]; then
-            echo "::error title=SP sem role::SP $AZURE_CLIENT_ID nao tem Contributor/Owner na subscription $AZURE_SUBSCRIPTION_ID"
-            echo "::error::Fix (rode local com az logado como admin do tenant):"
-            echo "::error::  az role assignment create --assignee $AZURE_CLIENT_ID --role Contributor --scope /subscriptions/$AZURE_SUBSCRIPTION_ID"
-            echo "::error::Aguarde 60-120s para propagacao + re-trigger workflow."
-            exit 1
-          fi
-          echo "SP tem role na subscription ($ROLE_COUNT role(s) Contributor/Owner)."
-
-      # ─── Check 4: Microsoft Graph Application.ReadWrite.All ──
-      - name: "✅ Check 4/8 — Microsoft Graph Application.ReadWrite.All com admin consent"
-        run: |
-          SP_OBJECT_ID=$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv 2>/dev/null)
-
-          if [ -z "$SP_OBJECT_ID" ]; then
-            echo "::error::Service Principal para App $AZURE_CLIENT_ID nao existe"
-            echo "::error::Fix: az ad sp create --id $AZURE_CLIENT_ID"
-            exit 1
-          fi
-
-          # Microsoft Graph appId = 00000003-0000-0000-c000-000000000000
-          GRAPH_SP_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
-
-          # Application.ReadWrite.All appRoleId = 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9
-          GRANT_COUNT=$(az rest \
-            --method GET \
-            --url "https://graph.microsoft.com/v1.0/servicePrincipals/$SP_OBJECT_ID/appRoleAssignments" \
-            --query "length(value[?appRoleId=='1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9' && resourceId=='$GRAPH_SP_ID'])" \
-            -o tsv 2>/dev/null || echo "0")
-
-          if [ "$GRANT_COUNT" = "0" ]; then
-            echo "::error title=Microsoft Graph perm faltando::SP nao tem Application.ReadWrite.All com admin consent"
-            echo "::error::auth_init.py vai falhar com 403 'Insufficient privileges' ao criar App Registrations"
-            echo "::error::Fix (rode local com az logado como Global Admin do tenant):"
-            echo "::error::  az ad app permission add --id $AZURE_CLIENT_ID --api 00000003-0000-0000-c000-000000000000 --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role"
-            echo "::error::  az ad app permission admin-consent --id $AZURE_CLIENT_ID"
-            exit 1
-          fi
-          echo "Microsoft Graph Application.ReadWrite.All concedido ($GRANT_COUNT grant(s))."
-
-      # ─── Check 5: AAD SQL Admin group existe ──────────────
-      - name: "✅ Check 5/8 — AAD SQL Admin group existe"
-        run: |
-          if [ -z "$AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID" ]; then
-            echo "AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID nao configurado — skip check (template SQL pode falhar)."
-            exit 0
-          fi
-
-          GROUP_NAME=$(az ad group show --group "$AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID" --query displayName -o tsv 2>/dev/null || echo "")
-
-          if [ -z "$GROUP_NAME" ]; then
-            echo "::error title=AAD group nao existe::Group $AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID nao foi encontrada no tenant"
-            echo "::error::Fix: criar a group OU atualizar var AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID:"
-            echo "::error::  az ad group create --display-name '${AZURE_SQL_AAD_ADMIN_GROUP_NAME:-aad-helpsphere-sql-admins}' --mail-nickname '${AZURE_SQL_AAD_ADMIN_GROUP_NAME:-aad-helpsphere-sql-admins}'"
-            echo "::error::Depois cole o novo Object ID na var AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID."
-            exit 1
-          fi
-          echo "AAD group existe: $GROUP_NAME ($AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID)"
-
-      # ─── Check 6: App Registrations sem SP companion (AUTO-FIX) ──
-      - name: "✅ Check 6/8 — App Registrations helpsphere/client tem SP companion (auto-fix)"
-        run: |
-          FIXED=0
-          for APP_NAME in "helpsphere" "helpsphere-client"; do
-            APP_IDS=$(az ad app list --display-name "$APP_NAME" --query "[].appId" -o tsv 2>/dev/null || echo "")
-
-            if [ -z "$APP_IDS" ]; then
-              echo "  $APP_NAME: nao existe ainda (auth_init.py vai criar)"
-              continue
-            fi
-
-            for APP_ID in $APP_IDS; do
-              SP_EXISTS=$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || echo "")
-              if [ -z "$SP_EXISTS" ]; then
-                echo "::warning title=App Reg orfa detectada::$APP_NAME ($APP_ID) sem SP — AUTO-FIX em andamento..."
-                if az ad sp create --id "$APP_ID" 2>&1; then
-                  echo "::notice::SP criado para $APP_NAME ($APP_ID)"
-                  FIXED=$((FIXED + 1))
-                else
-                  echo "::error title=Auto-fix falhou::Nao consegui criar SP para $APP_NAME ($APP_ID)"
-                  echo "::error::Verifique se SP federado tem Microsoft Graph Application.ReadWrite.All com admin consent"
-                  exit 1
-                fi
-              else
-                echo "  $APP_NAME ($APP_ID): OK (App + SP existem)"
-              fi
-            done
-          done
-
-          if [ "$FIXED" -gt 0 ]; then
-            echo "::notice::Auto-fix concluiu: $FIXED SP(s) criados. Aguardando 15s pra propagacao..."
-            sleep 15
-          fi
-          echo "Check 6 OK."
-
-      # ─── Check 7: Bicep templates compilam ────────────────
-      - name: "✅ Check 7/8 — Bicep templates compilam"
-        run: |
-          if [ -f "infra/main.bicep" ]; then
-            az bicep build --file infra/main.bicep --stdout > /tmp/main-arm.json 2>&1 || (cat /tmp/main-arm.json && echo "::error::Bicep main.bicep nao compila — corrija sintaxe" && exit 1)
-            echo "infra/main.bicep compila."
-          else
-            echo "infra/main.bicep nao encontrado — skip."
-          fi
-
-      # ─── Check 8: azd consegue ler subscription ────────────
-      - name: "✅ Check 8/8 — azd consegue ler subscription"
-        run: |
-          az account show --subscription "$AZURE_SUBSCRIPTION_ID" --query "{name:name, id:id, tenantId:tenantId, state:state}" -o yaml
-          if [ $? -ne 0 ]; then
-            echo "::error::az account show falhou — token pode estar com scope errado"
-            exit 1
-          fi
-          echo "Subscription $AZURE_SUBSCRIPTION_ID acessivel."
-
-      # ─── Summary ───────────────────────────────────────────
-      - name: "🎉 Preflight passou — tudo OK pra deploy"
-        run: |
-          echo "::notice title=Preflight OK::Todas as 8 checagens passaram. Build job vai iniciar agora."
-
-  build:
+  create-app-regs:
+    name: "🔐 Criar App Registrations (auth_init.py)"
     needs: preflight
     runs-on: ubuntu-latest
-    env:
-      # azd required
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      # project specific
-      AZURE_OPENAI_SERVICE: ${{ vars.AZURE_OPENAI_SERVICE }}
-      AZURE_OPENAI_LOCATION: ${{ vars.AZURE_OPENAI_LOCATION }}
-      AZURE_OPENAI_RESOURCE_GROUP: ${{ vars.AZURE_OPENAI_RESOURCE_GROUP }}
-      AZURE_DOCUMENTINTELLIGENCE_SERVICE: ${{ vars.AZURE_DOCUMENTINTELLIGENCE_SERVICE }}
-      AZURE_DOCUMENTINTELLIGENCE_RESOURCE_GROUP: ${{ vars.AZURE_DOCUMENTINTELLIGENCE_RESOURCE_GROUP }}
-      AZURE_DOCUMENTINTELLIGENCE_SKU: ${{ vars.AZURE_DOCUMENTINTELLIGENCE_SKU }}
-      AZURE_DOCUMENTINTELLIGENCE_LOCATION: ${{ vars.AZURE_DOCUMENTINTELLIGENCE_LOCATION }}
-      AZURE_VISION_SERVICE: ${{ vars.AZURE_VISION_SERVICE }}
-      AZURE_VISION_RESOURCE_GROUP: ${{ vars.AZURE_VISION_RESOURCE_GROUP }}
-      AZURE_VISION_LOCATION: ${{ vars.AZURE_VISION_LOCATION }}
-      AZURE_VISION_SKU: ${{ vars.AZURE_VISION_SKU }}
-      AZURE_SEARCH_INDEX: ${{ vars.AZURE_SEARCH_INDEX }}
-      AZURE_SEARCH_SERVICE: ${{ vars.AZURE_SEARCH_SERVICE }}
-      AZURE_SEARCH_SERVICE_RESOURCE_GROUP: ${{ vars.AZURE_SEARCH_SERVICE_RESOURCE_GROUP }}
-      AZURE_SEARCH_SERVICE_LOCATION: ${{ vars.AZURE_SEARCH_SERVICE_LOCATION }}
-      AZURE_SEARCH_SERVICE_SKU: ${{ vars.AZURE_SEARCH_SERVICE_SKU }}
-      AZURE_SEARCH_QUERY_LANGUAGE: ${{ vars.AZURE_SEARCH_QUERY_LANGUAGE }}
-      AZURE_SEARCH_QUERY_SPELLER: ${{ vars.AZURE_SEARCH_QUERY_SPELLER }}
-      AZURE_SEARCH_SEMANTIC_RANKER: ${{ vars.AZURE_SEARCH_SEMANTIC_RANKER }}
-      AZURE_SEARCH_QUERY_REWRITING: ${{ vars.AZURE_SEARCH_QUERY_REWRITING }}
-      AZURE_SEARCH_FIELD_NAME_EMBEDDING: ${{ vars.AZURE_SEARCH_FIELD_NAME_EMBEDDING }}
-      AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
-      AZURE_STORAGE_RESOURCE_GROUP: ${{ vars.AZURE_STORAGE_RESOURCE_GROUP }}
-      AZURE_STORAGE_SKU: ${{ vars.AZURE_STORAGE_SKU }}
-      AZURE_APP_SERVICE_PLAN: ${{ vars.AZURE_APP_SERVICE_PLAN }}
-      AZURE_APP_SERVICE_SKU: ${{ vars.AZURE_APP_SERVICE_SKU }}
-      AZURE_APP_SERVICE: ${{ vars.AZURE_APP_SERVICE }}
-      AZURE_OPENAI_CHATGPT_MODEL: ${{ vars.AZURE_OPENAI_CHATGPT_MODEL }}
-      AZURE_OPENAI_CHATGPT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHATGPT_DEPLOYMENT }}
-      AZURE_OPENAI_CHATGPT_DEPLOYMENT_CAPACITY: ${{ vars.AZURE_OPENAI_CHATGPT_DEPLOYMENT_CAPACITY }}
-      AZURE_OPENAI_CHATGPT_DEPLOYMENT_VERSION: ${{ vars.AZURE_OPENAI_CHATGPT_DEPLOYMENT_VERSION }}
-      AZURE_OPENAI_REASONING_EFFORT: ${{ vars.AZURE_OPENAI_REASONING_EFFORT }}
-      AGENTIC_KNOWLEDGEBASE_REASONING_EFFORT: ${{ vars.AGENTIC_KNOWLEDGEBASE_REASONING_EFFORT }}
-      AZURE_OPENAI_EMB_MODEL_NAME: ${{ vars.AZURE_OPENAI_EMB_MODEL_NAME }}
-      AZURE_OPENAI_EMB_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMB_DEPLOYMENT }}
-      AZURE_OPENAI_EMB_DEPLOYMENT_CAPACITY: ${{ vars.AZURE_OPENAI_EMB_DEPLOYMENT_CAPACITY }}
-      AZURE_OPENAI_EMB_DEPLOYMENT_VERSION: ${{ vars.AZURE_OPENAI_EMB_DEPLOYMENT_VERSION }}
-      AZURE_OPENAI_EMB_DIMENSIONS: ${{ vars.AZURE_OPENAI_EMB_DIMENSIONS }}
-      # ────────────────────────────────────────────────────
-      # IA stack DESABILITADO no apex-helpsphere base.
-      # Vars hardcoded como "false" — aluno nao precisa configurar.
-      # IA provisiona-se nos labs Inter/Final/Avancado passo-a-passo.
-      # ────────────────────────────────────────────────────
-      USE_EVAL: "false"
-      AZURE_OPENAI_EVAL_MODEL: ${{ vars.AZURE_OPENAI_EVAL_MODEL }}
-      AZURE_OPENAI_EVAL_MODEL_VERSION: ${{ vars.AZURE_OPENAI_EVAL_MODEL_VERSION }}
-      AZURE_OPENAI_EVAL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EVAL_DEPLOYMENT }}
-      AZURE_OPENAI_EVAL_DEPLOYMENT_SKU: ${{ vars.AZURE_OPENAI_EVAL_DEPLOYMENT_SKU }}
-      AZURE_OPENAI_EVAL_DEPLOYMENT_CAPACITY: ${{ vars.AZURE_OPENAI_EVAL_DEPLOYMENT_CAPACITY }}
-      AZURE_OPENAI_DISABLE_KEYS: ${{ vars.AZURE_OPENAI_DISABLE_KEYS }}
-      OPENAI_HOST: ${{ vars.OPENAI_HOST }}
-      OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY }}
-      OPENAI_ORGANIZATION: ${{ vars.OPENAI_ORGANIZATION }}
-      AZURE_USE_APPLICATION_INSIGHTS: ${{ vars.AZURE_USE_APPLICATION_INSIGHTS }}
-      AZURE_APPLICATION_INSIGHTS: ${{ vars.AZURE_APPLICATION_INSIGHTS }}
-      AZURE_APPLICATION_INSIGHTS_DASHBOARD: ${{ vars.AZURE_APPLICATION_INSIGHTS_DASHBOARD }}
-      AZURE_LOG_ANALYTICS: ${{ vars.AZURE_LOG_ANALYTICS }}
-      USE_VECTORS: "false"
-      USE_MULTIMODAL: "false"
-      USE_CLOUD_INGESTION: "false"
-      USE_CLOUD_INGESTION_ACLS: "false"
-      RESTORE_COGNITIVE_SERVICES: ${{ vars.RESTORE_COGNITIVE_SERVICES }}
-      USE_EXISTING_ADLS_STORAGE: ${{ vars.USE_EXISTING_ADLS_STORAGE }}
-      AZURE_ADLS_GEN2_STORAGE_ACCOUNT: ${{ vars.AZURE_ADLS_GEN2_STORAGE_ACCOUNT }}
-      AZURE_ADLS_GEN2_STORAGE_RESOURCE_GROUP: ${{ vars.AZURE_ADLS_GEN2_STORAGE_RESOURCE_GROUP }}
-      AZURE_VISION_ENDPOINT: ${{ vars.AZURE_VISION_ENDPOINT }}
-      VISION_SECRET_NAME: ${{ vars.VISION_SECRET_NAME }}
-      ENABLE_LANGUAGE_PICKER: "false"
-      USE_SPEECH_INPUT_BROWSER: "false"
-      USE_SPEECH_OUTPUT_BROWSER: "false"
-      USE_SPEECH_OUTPUT_AZURE: "false"
-      AZURE_SPEECH_SERVICE: ${{ vars.AZURE_SPEECH_SERVICE }}
-      AZURE_SPEECH_SERVICE_RESOURCE_GROUP: ${{ vars.AZURE_SPEECH_RESOURCE_GROUP }}
-      AZURE_SPEECH_SERVICE_LOCATION: ${{ vars.AZURE_SPEECH_SERVICE_LOCATION }}
-      AZURE_SPEECH_SERVICE_SKU: ${{ vars.AZURE_SPEECH_SERVICE_SKU }}
-      AZURE_SPEECH_SERVICE_VOICE: ${{ vars.AZURE_SPEECH_SERVICE_VOICE }}
-      AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
-      AZURE_USE_AUTHENTICATION: ${{ vars.AZURE_USE_AUTHENTICATION }}
-      AZURE_ENFORCE_ACCESS_CONTROL: ${{ vars.AZURE_ENFORCE_ACCESS_CONTROL }}
-      AZURE_ENABLE_GLOBAL_DOCUMENT_ACCESS: ${{ vars.AZURE_ENABLE_GLOBAL_DOCUMENT_ACCESS }}
-      AZURE_ENABLE_UNAUTHENTICATED_ACCESS: ${{ vars.AZURE_ENABLE_UNAUTHENTICATED_ACCESS }}
-      AZURE_AUTH_TENANT_ID: ${{ vars.AZURE_AUTH_TENANT_ID }}
-      AZURE_SERVER_APP_ID: ${{ vars.AZURE_SERVER_APP_ID }}
-      AZURE_CLIENT_APP_ID: ${{ vars.AZURE_CLIENT_APP_ID }}
-      ALLOWED_ORIGIN: ${{ vars.ALLOWED_ORIGIN }}
-      AZURE_ADLS_GEN2_FILESYSTEM: ${{ vars.AZURE_ADLS_GEN2_FILESYSTEM }}
-      DEPLOYMENT_TARGET: ${{ vars.DEPLOYMENT_TARGET }}
-      AZURE_CONTAINER_APPS_WORKLOAD_PROFILE: ${{ vars.AZURE_CONTAINER_APPS_WORKLOAD_PROFILE }}
-      USE_CHAT_HISTORY_BROWSER: "false"
-      USE_MEDIA_DESCRIBER_AZURE_CU: "false"
-      USE_AI_PROJECT: "false"
-      RAG_SEARCH_TEXT_EMBEDDINGS: ${{ vars.RAG_SEARCH_TEXT_EMBEDDINGS }}
-      RAG_SEARCH_IMAGE_EMBEDDINGS: ${{ vars.RAG_SEARCH_IMAGE_EMBEDDINGS }}
-      RAG_SEND_TEXT_SOURCES: ${{ vars.RAG_SEND_TEXT_SOURCES }}
-      RAG_SEND_IMAGE_SOURCES: ${{ vars.RAG_SEND_IMAGE_SOURCES }}
-      USE_AGENTIC_KNOWLEDGEBASE: "false"
-      USE_WEB_SOURCE: "false"
-      USE_SHAREPOINT_SOURCE: "false"
-      # HelpSphere — Story 06.5a Sessão 2.3 (SQL access) + Sessão 4 (env vars)
-      AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
-      AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
-      AZURE_SQL_DATABASE_NAME: ${{ vars.AZURE_SQL_DATABASE_NAME }}
-      USE_SQL_SERVER: ${{ vars.USE_SQL_SERVER }}
-      AZURE_LOAD_SEED_DATA: ${{ vars.AZURE_LOAD_SEED_DATA }}
+    outputs:
+      server_app_id: ${{ steps.auth_init.outputs.server_app_id }}
+      client_app_id: ${{ steps.auth_init.outputs.client_app_id }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - name: Install azd
-        uses: Azure/setup-azd@v2.2.1
-
-      - name: Install Nodejs
-        uses: actions/setup-node@v6
+      - name: Login Azure
+        uses: azure/login@v2
         with:
-          node-version: 20
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # HelpSphere — Story 06.5a Sessão 5 (Decisão #15 follow-up — run #11 falhou):
-      # sql_init.py (postprovision hook) roda NO RUNNER, não no backend container.
-      # Dockerfile do backend já instala msodbcsql18, mas o runner GH Actions não
-      # tem. Sem este step, sql_init.py crasha com:
-      #   pyodbc.Error: [01000] Can't open lib 'ODBC Driver 18 for SQL Server'
-      # Replica exatamente o que o Dockerfile do backend faz (Sessão 2.3).
-      - name: Install ODBC Driver 18 for SQL Server (Decisão #15)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install auth_init dependencies
         run: |
-          # Run #12 falhou com 'gpg: cannot open /dev/tty' usando gpg --dearmor.
-          # Workaround: usar packages-microsoft-prod.deb que configura repo + key
-          # via dpkg (sem gpg interativo). Approach oficial da MS para CI/headless.
-          UBUNTU_VER=$(lsb_release -rs)
-          curl -fsSL "https://packages.microsoft.com/config/ubuntu/${UBUNTU_VER}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb
-          sudo dpkg -i /tmp/packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev
-          echo "✅ ODBC Driver 18 instalado no runner (Ubuntu ${UBUNTU_VER})"
-          odbcinst -q -d -n "ODBC Driver 18 for SQL Server" || true
-        shell: bash
+          python -m pip install --upgrade pip
+          pip install msgraph-sdk azure-identity
 
-      # HelpSphere — Story 06.5a Sessão 4 (Decisão #9):
-      # Bicep validation ANTES de provision para pegar bugs determinísticos
-      # como BCP053/BCP037/max-outputs (que quebraram a Sessão 2.3 e geraram
-      # a necessidade da Sessão 3.5). CodeRabbit não roda bicep build.
-      # Ubuntu runner já tem az CLI preinstalado — só precisa instalar bicep.
-      - name: Validate Bicep (lição Decisão #9)
+      - name: Run auth_init.py (cria helpsphere + helpsphere-client)
+        id: auth_init
         run: |
-          az bicep install
-          az bicep build --file infra/main.bicep --stdout > /dev/null
-          echo "✅ Bicep build limpo — sem erros nem warnings críticos"
-        shell: bash
+          cd scripts
+          python auth_init.py 2>&1 | tee /tmp/auth_init.log
 
-      - name: Log in with Azure (Federated Credentials)
-        run: |
-          azd auth login `
-            --client-id "$Env:AZURE_CLIENT_ID" `
-            --federated-credential-provider "github" `
-            --tenant-id "$Env:AZURE_TENANT_ID"
-        shell: pwsh
+          # Extrai server_app_id e client_app_id do log
+          SERVER_ID=$(grep -oP '"server_app_id"\s*:\s*"\K[^"]+' /tmp/auth_init.log | head -1)
+          CLIENT_ID=$(grep -oP '"client_app_id"\s*:\s*"\K[^"]+' /tmp/auth_init.log | head -1)
 
-      # HelpSphere — Story 06.5a Sessão 5 (Decisão #15): persistir env vars
-      # críticas no azd env file ANTES do provision. azd hooks (preprovision,
-      # postprovision como sql_init.sh) leem APENAS o azd env, não o shell env
-      # do GitHub Actions. Sem esta etapa, sql_init.sh recebia USE_SQL_SERVER
-      # vazio e pulava silenciosamente, deixando o backend MI sem SQL grant.
-      - name: Persist env to azd environment (Decisão #15)
-        run: |
-          # Runner é fresh a cada run — azd env precisa ser criado antes
-          # do `azd env set` (que falha com "environment does not exist").
-          # `|| true` torna idempotente (sucesso se env já existe).
-          azd env new "$AZURE_ENV_NAME" \
-            --location "$AZURE_LOCATION" \
-            --subscription "$AZURE_SUBSCRIPTION_ID" \
-            --no-prompt 2>/dev/null || true
-          azd env select "$AZURE_ENV_NAME"
+          echo "server_app_id=$SERVER_ID" >> $GITHUB_OUTPUT
+          echo "client_app_id=$CLIENT_ID" >> $GITHUB_OUTPUT
 
-          azd env set USE_SQL_SERVER "${USE_SQL_SERVER:-true}"
-          azd env set RESTORE_COGNITIVE_SERVICES "${RESTORE_COGNITIVE_SERVICES:-true}"
-          azd env set USE_MULTIMODAL "false"
-          azd env set AZURE_LOAD_SEED_DATA "${AZURE_LOAD_SEED_DATA:-true}"
-          azd env set DEPLOYMENT_TARGET "${DEPLOYMENT_TARGET:-containerapps}"
-          azd env set AZURE_USE_AUTHENTICATION "${AZURE_USE_AUTHENTICATION:-false}"
-          azd env set AZURE_SQL_DATABASE_NAME "${AZURE_SQL_DATABASE_NAME:-helpsphere}"
-          azd env set AZURE_SQL_AAD_ADMIN_GROUP_NAME "${AZURE_SQL_AAD_ADMIN_GROUP_NAME}"
-          azd env set AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID "${AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID}"
-          echo "✅ Critical env vars persistidos ao azd env (USE_SQL_SERVER, AZURE_LOAD_SEED_DATA, etc)"
-          azd env get-values | grep -E '^(USE_SQL_SERVER|RESTORE_COGNITIVE|USE_MULTIMODAL|AZURE_LOAD_SEED|DEPLOYMENT_TARGET|AZURE_USE_AUTH|AZURE_SQL_)' || true
-        shell: bash
-
-      - name: Provision Infrastructure
-        run: azd provision --no-prompt
+          echo "::notice::Server App ID: $SERVER_ID"
+          echo "::notice::Client App ID: $CLIENT_ID"
         env:
-          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-          AZURE_SERVER_APP_SECRET: ${{ secrets.AZURE_SERVER_APP_SECRET }}
-          AZURE_CLIENT_APP_SECRET: ${{ secrets.AZURE_CLIENT_APP_SECRET }}
+          AZURE_USE_AUTHENTICATION: "true"
+          AZURE_AUTH_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
 
-      - name: Deploy Application
-        run: azd deploy --no-prompt
+  deploy-infra:
+    name: "🚀 Deploy infra (sem role assignments)"
+    needs: create-app-regs
+    runs-on: ubuntu-latest
+    outputs:
+      rg_name: ${{ steps.set_rg.outputs.rg_name }}
+      backend_mi_id: ${{ steps.deploy.outputs.backend_mi_id }}
+      tickets_mi_id: ${{ steps.deploy.outputs.tickets_mi_id }}
+      storage_account: ${{ steps.deploy.outputs.storage_account }}
+      sql_server: ${{ steps.deploy.outputs.sql_server }}
+    steps:
+      - uses: actions/checkout@v4
 
-      # HelpSphere — Story 06.5c.3 (B-PRACTICAL): smoke test atualizado para hybrid
-      # PRINCIPAL (bloqueia workflow se falhar): tickets-service .NET /health
-      #   - Endpoint: $TICKETS_BACKEND_URI/health
-      #   - Não toca SQL (in-memory response) — funciona mesmo sem grants Story 06.5c.4
-      #   - HTTP 200 esperado (AllowAnonymous, sem JWT necessário)
-      - name: Smoke test tickets-service /health (HelpSphere 06.5c.3 — CRITICAL)
-        if: success() && inputs.skip_smoke != true
+      - name: Login Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set RG name
+        id: set_rg
         run: |
-          TICKETS_URI=$(azd env get-values | grep '^TICKETS_BACKEND_URI=' | cut -d'=' -f2- | tr -d '"')
-          if [ -z "$TICKETS_URI" ]; then
-            echo "❌ TICKETS_BACKEND_URI vazio — provision/deploy pode ter falhado"
-            azd env get-values | grep -E 'TICKETS|BACKEND' || true
-            exit 1
-          fi
-          echo "✅ Tickets-service URI: $TICKETS_URI"
-          # Retry loop ~7min para tolerar ACA cold start (.NET 10 Alpine ~3-5s startup
-          # mas ACA precisa criar réplica + warm-up Kestrel + AAD token cache init).
-          ATTEMPTS=15
-          STATUS=000
-          for i in $(seq 1 $ATTEMPTS); do
-            STATUS=$(curl -ksSL --max-time 10 -o /dev/null -w "%{http_code}" "$TICKETS_URI/health" || echo "000")
-            echo "[tickets smoke $i/$ATTEMPTS] HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Tickets-service /health OK — HTTP 200 após $i tentativa(s)"
-              # Bonus: imprimir body para confirmar shape esperado
-              curl -ksSL --max-time 10 "$TICKETS_URI/health" | head -1
-              exit 0
-            fi
-            [ $i -lt $ATTEMPTS ] && sleep 20
-          done
-          echo "❌ Tickets-service /health falhou após $ATTEMPTS tentativas (~7min) — última HTTP $STATUS"
-          exit 1
-        shell: bash
+          RG_NAME="rg-${{ vars.AZURE_ENV_NAME }}"
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_ENV
 
-      # HelpSphere — Story 06.5c.3 (B-PRACTICAL): smoke Python backend INFORMATIONAL
-      # Python backend está em crashloop conhecido (Sessão 5 Decisão #15.7) e será
-      # deprecated em Story 06.5c.7 (retornar 410 Gone em /api/tickets/*).
-      # continue-on-error=true: smoke pode falhar sem bloquear workflow — aluno vê
-      # estado real do backend Python sem perder green run quando tickets-service OK.
-      - name: Smoke test backend Python / (HelpSphere 06.5c.3 — INFORMATIONAL)
-        if: success() && inputs.skip_smoke != true
-        continue-on-error: true
+      - name: Criar Resource Group
         run: |
-          BACKEND_URI=$(azd env get-values | grep '^BACKEND_URI=' | cut -d'=' -f2- | tr -d '"')
-          if [ -z "$BACKEND_URI" ]; then
-            echo "ℹ️ BACKEND_URI vazio — pulando smoke informational"
-            exit 0
-          fi
-          echo "ℹ️ Backend Python URI (informational): $BACKEND_URI"
-          # 5 attempts only (não 15) — backend Python crashloop conhecido
-          ATTEMPTS=5
-          STATUS=000
-          for i in $(seq 1 $ATTEMPTS); do
-            STATUS=$(curl -ksSL --max-time 10 -o /dev/null -w "%{http_code}" "$BACKEND_URI" || echo "000")
-            echo "[backend smoke $i/$ATTEMPTS] HTTP $STATUS"
-            if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "401" ]; then
-              echo "✅ Backend Python OK (informational) — HTTP $STATUS"
-              exit 0
-            fi
-            [ $i -lt $ATTEMPTS ] && sleep 20
-          done
-          echo "⚠️ Backend Python smoke falhou após $ATTEMPTS tentativas — HTTP $STATUS (esperado, deprecating em 06.5c.7)"
-          # NOTA: continue-on-error=true acima permite workflow continuar mesmo com este exit
-          exit 1
-        shell: bash
+          az group create \
+            --name "$RG_NAME" \
+            --location "${{ vars.AZURE_LOCATION }}" \
+            --tags course=D06 lab=helpsphere-saas managedBy=github-actions
 
-      # HelpSphere — Story 06.5a Sessão 4 (S4.I): cleanup elegante via Actions
-      # Triggered manualmente via workflow_dispatch input destroy=true.
-      # Cumpre Decisão #5 (FinOps) + regra de ouro D06 (DELETE RG ao final).
-      - name: Destroy resources (HelpSphere S4.I — cleanup)
-        if: always() && inputs.destroy == true
+      - name: Deploy Bicep (deployIaStack=false + skipRoleAssignments=true)
+        id: deploy
         run: |
-          echo "🗑️  Iniciando azd down --force --purge..."
-          azd down --force --purge --no-prompt
-          echo "✅ azd down completo"
-        shell: bash
+          az deployment group create \
+            --resource-group "$RG_NAME" \
+            --name "main" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters \
+              environmentName="${{ vars.AZURE_ENV_NAME }}" \
+              location="${{ vars.AZURE_LOCATION }}" \
+              deployIaStack=false \
+              skipRoleAssignments=true \
+              serverAppId="${{ needs.create-app-regs.outputs.server_app_id }}" \
+              clientAppId="${{ needs.create-app-regs.outputs.client_app_id }}"
+
+          # Captura outputs do deployment
+          OUTPUTS=$(az deployment group show -g "$RG_NAME" -n main --query properties.outputs -o json)
+
+          BACKEND_MI=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("backendIdentityPrincipalId",{}).get("value",""))' || echo "")
+          TICKETS_MI=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ticketsServiceIdentityPrincipalId",{}).get("value",""))' || echo "")
+          STORAGE=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("storageAccountName",{}).get("value",""))' || echo "")
+          SQL=$(echo "$OUTPUTS" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("sqlServerName",{}).get("value",""))' || echo "")
+
+          echo "backend_mi_id=$BACKEND_MI" >> $GITHUB_OUTPUT
+          echo "tickets_mi_id=$TICKETS_MI" >> $GITHUB_OUTPUT
+          echo "storage_account=$STORAGE" >> $GITHUB_OUTPUT
+          echo "sql_server=$SQL" >> $GITHUB_OUTPUT
+
+  generate-postdeploy-script:
+    name: "📜 Gerar script post-deploy (role assignments)"
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate script for user to run locally
+        run: |
+          cat > /tmp/post-deploy-roles.ps1 <<EOF
+          # ============================================================
+          # Script de role assignments — RODE LOCAL com SUA CONTA
+          # ============================================================
+          # CI nao consegue criar role assignments nesta subscription
+          # (ABAC condition bloqueia escalar SP para Owner/UAA/RBAC Admin).
+          #
+          # Voce (Owner-with-ABAC) PODE atribuir roles non-Owner.
+          # Rode este script localmente apos workflow concluir.
+          # ============================================================
+
+          \$RG_NAME = "${{ needs.deploy-infra.outputs.rg_name }}"
+          \$SUB_ID = "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+          \$BACKEND_MI = "${{ needs.deploy-infra.outputs.backend_mi_id }}"
+          \$TICKETS_MI = "${{ needs.deploy-infra.outputs.tickets_mi_id }}"
+          \$STORAGE = "${{ needs.deploy-infra.outputs.storage_account }}"
+          \$SQL_SERVER = "${{ needs.deploy-infra.outputs.sql_server }}"
+
+          Write-Host "Logando como SUA conta (Owner)..."
+          az login --tenant ${{ vars.AZURE_TENANT_ID }}
+          az account set --subscription \$SUB_ID
+
+          # Backend MI: Storage Blob Data Contributor no Storage
+          az role assignment create \`
+            --assignee-object-id \$BACKEND_MI \`
+            --assignee-principal-type ServicePrincipal \`
+            --role "Storage Blob Data Contributor" \`
+            --scope "/subscriptions/\$SUB_ID/resourceGroups/\$RG_NAME/providers/Microsoft.Storage/storageAccounts/\$STORAGE"
+
+          # Tickets MI: Storage Blob Data Reader no Storage
+          az role assignment create \`
+            --assignee-object-id \$TICKETS_MI \`
+            --assignee-principal-type ServicePrincipal \`
+            --role "Storage Blob Data Reader" \`
+            --scope "/subscriptions/\$SUB_ID/resourceGroups/\$RG_NAME/providers/Microsoft.Storage/storageAccounts/\$STORAGE"
+
+          Write-Host "Role assignments criados. Containers podem reiniciar para pegar novas perms:"
+          Write-Host "  az containerapp restart --name <backend> --resource-group \$RG_NAME"
+          Write-Host "  az containerapp restart --name <tickets> --resource-group \$RG_NAME"
+          EOF
+
+          echo "::notice::Script gerado em /tmp/post-deploy-roles.ps1"
+          cat /tmp/post-deploy-roles.ps1
+
+      - name: Upload script as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-role-assignments
+          path: /tmp/post-deploy-roles.ps1
+          retention-days: 7
+
+  destroy:
+    name: "🧹 Destroy"
+    if: github.event.inputs.destroy == 'true'
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete RG
+        run: az group delete --name "${{ needs.deploy-infra.outputs.rg_name }}" --yes --no-wait
