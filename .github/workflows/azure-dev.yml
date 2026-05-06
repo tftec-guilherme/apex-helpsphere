@@ -25,7 +25,12 @@ on:
   workflow_dispatch:
     inputs:
       destroy:
-        description: "Destruir RG apos deploy (cleanup)"
+        description: 'Destruir recursos após deploy (azd down --purge)'
+        required: false
+        default: false
+        type: boolean
+      skip_smoke:
+        description: 'Pular smoke test pós-deploy'
         required: false
         default: false
         type: boolean
