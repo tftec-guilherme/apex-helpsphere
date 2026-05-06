@@ -217,6 +217,53 @@ echo "Object ID: $GROUP_ID"
 
 > **Por que reativo (em 5.1) e não preventivo (em 3.5)?** A primeira execução do template **pode** ter a var `AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID` já configurada com group existente. Só falha quando ID aponta pra group inexistente — o preflight Check 5 te avisa exatamente quando isso acontece.
 
+### 5.2. Após workflow concluir — criar role assignments locais
+
+Quando o workflow `5. Deploy` terminar **com sucesso**, a infra está provisionada (App Service + Container Apps + SQL + Storage + Auth). **Mas** os Managed Identities do backend Python e do tickets-service .NET ainda **não têm permissão** de acessar Storage. Sem isso, os containers sobem mas dão erro de auth ao tentar ler/escrever blobs.
+
+**Por que isso não é feito automaticamente pelo workflow?** Em conta Azure pessoal `live.com` com Visual Studio Enterprise, sua role `Owner` tem uma **ABAC condition** (Attribute-Based Access Control) que **bloqueia atribuir Owner / User Access Administrator / RBAC Admin** a qualquer principal — incluindo o SP federated do GitHub Actions. Sem essas roles elevadas, o SP não tem `Microsoft.Authorization/roleAssignments/write`, então não consegue criar role assignments. **A solução é você (Owner com ABAC) criar os role assignments manualmente** — ABAC permite atribuir roles non-Owner como `Storage Blob Data Contributor`.
+
+Em **conta corporativa TFTEC sem ABAC**, isso seria automático. Em conta pessoal, fica esse passo extra de ~30 segundos.
+
+#### Comandos PowerShell (linha única)
+
+```powershell
+$RG = "rg-<seu-AZURE_ENV_NAME>"  # ex: rg-helpsphere-actions
+$BACKEND_MI = (az containerapp list --resource-group $RG --query "[?contains(name, 'backend')].identity.principalId | [0]" -o tsv)
+$TICKETS_MI = (az containerapp list --resource-group $RG --query "[?contains(name, 'tickets')].identity.principalId | [0]" -o tsv)
+$STORAGE = (az storage account list --resource-group $RG --query "[0].name" -o tsv)
+$SUB = (az account show --query id -o tsv)
+
+# Backend MI → leitura/escrita no Storage
+az role assignment create --assignee-object-id $BACKEND_MI --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Storage/storageAccounts/$STORAGE"
+
+# Tickets MI → leitura/escrita no Storage
+az role assignment create --assignee-object-id $TICKETS_MI --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Storage/storageAccounts/$STORAGE"
+
+# Você (user) → leitura/escrita no Storage (pra usar Storage Explorer/Portal)
+$ME = (az ad signed-in-user show --query id -o tsv)
+az role assignment create --assignee-object-id $ME --assignee-principal-type User --role "Storage Blob Data Contributor" --scope "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Storage/storageAccounts/$STORAGE"
+```
+
+#### Restart dos containers (pra pegar as novas perms)
+
+```powershell
+$BACKEND_NAME = (az containerapp list --resource-group $RG --query "[?contains(name, 'backend')].name | [0]" -o tsv)
+$TICKETS_NAME = (az containerapp list --resource-group $RG --query "[?contains(name, 'tickets')].name | [0]" -o tsv)
+az containerapp revision restart --name $BACKEND_NAME --resource-group $RG --revision (az containerapp show --name $BACKEND_NAME --resource-group $RG --query properties.latestRevisionName -o tsv)
+az containerapp revision restart --name $TICKETS_NAME --resource-group $RG --revision (az containerapp show --name $TICKETS_NAME --resource-group $RG --query properties.latestRevisionName -o tsv)
+```
+
+#### Validação
+
+```powershell
+az role assignment list --assignee $BACKEND_MI --scope "/subscriptions/$SUB/resourceGroups/$RG" --query "[].{role:roleDefinitionName, principalType:principalType}" -o table
+```
+
+Deve listar `Storage Blob Data Contributor` para o backend MI.
+
+> **Política de revisão anual:** quando a Microsoft revisar a ABAC condition default em Visual Studio Enterprise (ou se você migrar pra conta corporativa sem ABAC), esse passo 5.2 vira opcional — `azd up` automatiza tudo. Por enquanto, é manual.
+
 ### 6. Abrir no navegador
 
 Acesse a URL. Você vai ver:
