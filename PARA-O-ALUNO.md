@@ -10,6 +10,8 @@ A **Apex Group** (holding varejo brasileira fictícia) já tem um sistema de tic
 
 Esse repo é o **HelpSphere pré-pronto** — você roda `azd up`, ganha 9-14 minutos, e foca o tempo de lab no que importa: pipeline RAG, agentes, automação.
 
+> ⭐ **Setup zero-friction v2.1.0:** **0 passos manuais no Portal Azure**. App Registrations (Server + Client), admin consent das 5 Microsoft Graph perms, e Directory Extension Property `app_tenant_id` são automatizados via `scripts/auth_init.py` no preprovision hook. Era ~6 passos manuais no v2.0.0 — virou zero. Estado canônico fixado na tag git [`helpsphere-v2.1.0`](https://github.com/tftec-guilherme/apex-helpsphere/releases/tag/helpsphere-v2.1.0).
+
 ---
 
 ## ✅ Pré-requisitos (checklist 1 minuto)
@@ -85,6 +87,17 @@ No final, o `azd up` imprime a URL pública. Acesse, faça login com sua conta E
 
 ### 5. Verificar que funcionou
 
+Abra a URL pública impressa pelo `azd up` no navegador. O fluxo correto v2.1.0 é:
+
+1. **Login bloqueante** — você cai na rota `/redirect` que serve um `<LoginGate>` componente; clique em **Sign in**, MSAL faz `loginRedirect` (não popup) pra Microsoft Entra com `prompt: select_account`, você loga
+2. **Apex Executivo Dashboard (`/`)** — após login, você cai no dashboard executivo: **4 KPI cards** (open tickets, avg resolution time, satisfaction score, total tenants) + **2 Recharts** consumindo `/api/tickets/stats` em tempo real via Dapper `QueryMultipleAsync`
+3. **Lista de tickets (`/tickets`)** — menu lateral → ver os **50 tickets pt-BR** distribuídos em **5 tenants** (Apex Mart, Apex Tech, Apex Logistics, Apex Finance, Apex Brasil)
+4. **Detalhe do ticket (`/tickets/{id}`)** — clique em qualquer ticket pra ver descrição + 70 comments seedados + status
+
+> **Apex Executivo design system:** o template v2.1.0 tem identidade visual própria — fontes **Fraunces** (display elegante serif) + **Inter Tight** (UI) + **JetBrains Mono** (code) · paleta **off-white `#fafaf7`** / **navy `#0c1834`** / **accent gold `#a87b3f`**. Não é mais o look do template Microsoft `azure-search-openai-demo` original — é um SaaS executivo com apresentação para C-level brasileiro.
+
+Se quiser validar via API direto:
+
 ```bash
 # Pegue o tickets-service URL
 TICKETS_URL=$(azd env get-value TICKETS_BACKEND_URI)
@@ -109,11 +122,13 @@ azd down --purge
 
 ## 🗺️ Próximos passos na disciplina
 
-| Lab | O que você adiciona | Repo destino |
-|-----|---------------------|--------------|
-| **Lab Intermediário** (M02-M05) | Pipeline RAG: AI Search + embeddings + chat com citation rendering sobre os 62 PDFs Apex | seu fork (branch `lab-intermediario`) |
-| **Lab Final** (M06) | Agentes Foundry com tools + canal de voz (Speech STT/TTS) + integração com tickets | seu fork (branch `lab-final`) |
-| **Lab Avançado** (D04 sinergia) | Tickets-service publica `TicketStatusChanged` no Service Bus, Logic App reage | repo separado: `lab-avancado-dashboard` |
+Cada lab adiciona uma camada nova ao HelpSphere. Sempre que possível há **dois caminhos**: o branch no seu fork (Bicep automation, validado em CI) **ou** o companion repo público com passo-a-passo Portal-first. Pattern arquitetural **"Bicep validates → Portal mirrors"** garante anti-drift: o Bicep no monorepo é ground truth técnico; o repo Portal-first é didático e atualizado quando UI do Azure muda.
+
+| Lab | O que você adiciona | Repo destino (fork) | Companion Portal-first |
+|-----|---------------------|---------------------|------------------------|
+| **Lab Intermediário** (M02-M05) | Pipeline RAG: Document Intelligence (`prebuilt-layout`) + Azure AI Search (Basic) + skillset declarativo + chat com citation rendering. Curadoria: **8 PDFs sample-kb** corporativos pt-BR (subset pedagógico dos 62 PDFs Apex full KB) | seu fork (branch `lab-intermediario`) | [`tftec-guilherme/apex-rag-lab`](https://github.com/tftec-guilherme/apex-rag-lab) — **10 capítulos Portal Azure** + snippets + screenshots Q2-2026 |
+| **Lab Final** (M06) | Agentes Foundry com tools + canal de voz (Speech STT/TTS) + automação confidence-based via n8n + integração com tickets | seu fork (branch `lab-final`) | (companion futuro Q3-2026) |
+| **Lab Avançado** (D06 — IA em produção) | **Production-grade canônico isolado:** CI/CD GitHub Actions completo + APIM Developer tier + Content Safety guardrails (prompt shields) + Azure Policy + circuit breaker + observabilidade Application Insights end-to-end. **NÃO usa D04** (apesar de tecnologias próximas) — partimos sempre das melhorias do `apex-helpsphere` como base SaaS | seu fork (branch `lab-avancado`) | guia em [`Disciplina_06_*/01_Aulas/Lab_Avancado_IA_Producao_Guia_Portal.md`](https://github.com/tftec-guilherme/azure-retail) |
 
 > **Chat / RAG no template:** A rota `/chat` está **dormente** no template v2.1.0 — sumida da nav lateral. Quando você fizer o **Lab Intermediário (M02-M05)**, vai habilitar via Bicep param `enableChat=true` (que vira env var `ENABLE_CHAT=true` no backend, exposta em `/auth_setup` pro frontend). Backend Python `/chat` está **funcional** (auth + OpenAI client setup), só falta o pipeline RAG (embeddings + AI Search index com docs Apex) que é justamente o escopo do lab. Por isso ele aparece sem opção na UI: evita "promessa quebrada" pro aluno e foca a v2.1.0 em **infraestrutura production-grade + tickets**.
 
@@ -175,7 +190,9 @@ parcialmente quebrado.
 | **#28** | MSAL.js `loginPopup` engole erros silenciosamente quando popup é bloqueado pelo browser. User clica botão e nada acontece — erro só aparece no console F12 | Browser default em incognito bloqueia popups. **Fix permanente (Decisão #23):** trocar `loginPopup` → `loginRedirect` (navega janela inteira para AAD, robusto contra popup blockers). `LoginGate` componente bloqueante substitui "click no botão e talvez funcione". |
 | **#29** | `loginRedirect` quebra silenciosamente se a rota `/redirect` retornar página em branco. Browser volta de Microsoft com `#code=...` no hash, mas React não monta → `handleRedirectPromise()` nunca processa o token | Template original assumia popup-only. **Fix permanente:** rota `/redirect` no backend serve `index.html` (não blank string). `index.tsx` chama `handleRedirectPromise()` no boot do MSAL e redireciona pra `/` após processar hash. |
 
-> **Total cravado v2.1.0:** 29 surpresas → 29 lições aprendidas → 100% automatizadas no template. Você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico desta evolução: ~16h de debugging E2E real (sessão 9.4-9.5).
+> **Total cravado v2.1.0:** 29 surpresas → 29 lições aprendidas → 100% automatizadas no template. Você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico desta evolução: ~16h de debugging E2E real (Sessões 9.4-9.5) + cleanup final (Sessão 9.6 noite).
+>
+> **Estado canônico:** tag git [`helpsphere-v2.1.0`](https://github.com/tftec-guilherme/apex-helpsphere/releases/tag/helpsphere-v2.1.0). Use `git checkout helpsphere-v2.1.0` se quiser começar de um ponto exato reproduzível.
 
 ---
 
