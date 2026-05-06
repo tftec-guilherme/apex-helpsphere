@@ -148,19 +148,81 @@ az ad app permission list-grants --id $APP_ID --output table
 
 ⏳ Tudo isso é **uma vez na vida do tenant**. Próxima execução do workflow vai consumir esses recursos.
 
-### 4. Configurar 5 Variables no fork
+### 3.5. Criar AAD group para admin do SQL Server (1 vez)
 
-No seu fork → **Settings** → **Secrets and variables** → **Actions** → aba **Variables** (NÃO Secrets!) → **New repository variable**, 5 vezes:
+O Bicep do template precisa de uma **Entra group** atribuída como **AAD admin do Azure SQL Server** (sem isso, ninguém loga no SQL via Entra). Crie a group + adicione seu usuário como membro:
 
-| Variable name | Valor |
-|---------------|-------|
-| `AZURE_CLIENT_ID` | (do passo 3) |
-| `AZURE_TENANT_ID` | (do passo 3) |
-| `AZURE_SUBSCRIPTION_ID` | (do passo 3) |
-| `AZURE_ENV_NAME` | `helpsphere-actions` |
-| `AZURE_LOCATION` | `westus3` |
+```powershell
+# 1) Cria a AAD group
+$group = (az ad group create `
+  --display-name "aad-helpsphere-sql-admins" `
+  --mail-nickname "aad-helpsphere-sql-admins" `
+  --description "SQL admins do HelpSphere — D06 lab" `
+  -o json) | ConvertFrom-Json
 
-> **Por que Variables e não Secrets?** São 5 IDs identificadores (não senhas). Federated OIDC dispensa secret estático — o token é trocado em runtime.
+Write-Host "AZURE_SQL_AAD_ADMIN_GROUP_NAME=aad-helpsphere-sql-admins"
+Write-Host "AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID=$($group.id)"
+
+# 2) Adiciona seu usuario como membro (pra logar via Entra no SQL depois)
+$ME = (az ad signed-in-user show --query id -o tsv)
+az ad group member add --group $group.id --member-id $ME
+
+# 3) Confirma membership
+az ad group member list --group $group.id --query "[].{name:displayName, id:id}" -o table
+```
+
+**Bash equivalente:**
+
+```bash
+GROUP_ID=$(az ad group create \
+  --display-name "aad-helpsphere-sql-admins" \
+  --mail-nickname "aad-helpsphere-sql-admins" \
+  --description "SQL admins do HelpSphere — D06 lab" \
+  --query id -o tsv)
+
+ME=$(az ad signed-in-user show --query id -o tsv)
+az ad group member add --group "$GROUP_ID" --member-id "$ME"
+
+echo "AZURE_SQL_AAD_ADMIN_GROUP_NAME=aad-helpsphere-sql-admins"
+echo "AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID=$GROUP_ID"
+```
+
+Salve os 2 valores impressos — vão entrar nas Variables do passo 4 também.
+
+> **Por que essa group?** Bicep do template configura essa group como AAD admin do SQL Server. Sem isso: nenhum login Entra no SQL, falla deploy. Com sua user na group: você consegue logar no SQL via SSMS/Azure Data Studio sem precisar SQL auth.
+
+### 4. Configurar 7 Variables no fork
+
+No seu fork → **Settings** → **Secrets and variables** → **Actions** → aba **Variables** (NÃO Secrets!) → **New repository variable**, 7 vezes:
+
+| Variable name | Valor | Origem |
+|---------------|-------|--------|
+| `AZURE_CLIENT_ID` | App ID do federated SP | passo 3 |
+| `AZURE_TENANT_ID` | Tenant Azure | passo 3 |
+| `AZURE_SUBSCRIPTION_ID` | Subscription | passo 3 |
+| `AZURE_ENV_NAME` | `helpsphere-actions` | escolha você |
+| `AZURE_LOCATION` | `westus3` ou `eastus2` | escolha você |
+| `AZURE_SQL_AAD_ADMIN_GROUP_NAME` | `aad-helpsphere-sql-admins` | passo 3.5 |
+| `AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID` | Object ID da group criada | passo 3.5 |
+
+**Atalho via gh CLI (se preferir batch):**
+
+```powershell
+# Substitua pelos seus valores
+$REPO = "SEU_USUARIO/apex-helpsphere"
+gh variable set AZURE_CLIENT_ID --body "<APP_ID>" --repo $REPO
+gh variable set AZURE_TENANT_ID --body "<TENANT_ID>" --repo $REPO
+gh variable set AZURE_SUBSCRIPTION_ID --body "<SUB_ID>" --repo $REPO
+gh variable set AZURE_ENV_NAME --body "helpsphere-actions" --repo $REPO
+gh variable set AZURE_LOCATION --body "westus3" --repo $REPO
+gh variable set AZURE_SQL_AAD_ADMIN_GROUP_NAME --body "aad-helpsphere-sql-admins" --repo $REPO
+gh variable set AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID --body "<GROUP_ID>" --repo $REPO
+
+# Confirma todas
+gh variable list --repo $REPO
+```
+
+> **Por que Variables e não Secrets?** São 7 identificadores (IDs e nomes), não senhas. Federated OIDC dispensa secret estático — o token é trocado em runtime via `azure/login@v2`.
 
 ### 5. Trigger deploy
 
@@ -174,6 +236,33 @@ No fork → **Actions** → workflow **"5. Deploy (Azure Container Apps)"** → 
 4. Deploy — sobe artefatos + migrations + seed (50 tickets pt-BR)
 
 URL pública aparece no log do step "Show app URL".
+
+### 5.1. Acompanhar preflight + interpretar erros
+
+Antes do build/deploy, roda o **job preflight** (~30s) com 8 checks acionáveis. Se algo falhar, a aba Actions vai mostrar `::error::` com o comando exato de fix.
+
+**Checks que rodam:**
+
+| # | Check | Auto-fix? | O que faz se falhar |
+|---|-------|-----------|---------------------|
+| 1 | 5 vars básicas configuradas | ❌ | Te diz qual var faltou |
+| 2 | Federated SP autentica | ❌ | Te diz se vars estão erradas |
+| 3 | SP tem Contributor+ na sub | ❌ | Te dá comando `az role assignment create` exato |
+| 4 | Microsoft Graph `Application.ReadWrite.All` + admin consent | ❌ | Te dá os 2 comandos `az ad app permission add/admin-consent` |
+| 5 | AAD group de SQL admin existe | ❌ | Te dá comando `az ad group create` (passo 3.5) |
+| 6 | App Registrations órfãs (sem SP companion) | ✅ **AUTO-FIX** | Cria SP automaticamente via `az ad sp create` |
+| 7 | Bicep templates compilam | ❌ | Te diz qual módulo está com erro de sintaxe |
+| 8 | `azd` consegue ler subscription | ❌ | Te diz se token tem scope errado |
+
+**O que fazer se um check falhar:**
+
+1. Lê a mensagem `::error::` (clica no step vermelho na aba Actions)
+2. Copia o comando de fix sugerido
+3. Roda local em PowerShell ou Cloud Shell
+4. Aguarda 60-120s pra propagação RBAC/AAD
+5. **Re-run all jobs** no workflow (não "re-run failed only" — pra começar do zero)
+
+> **Filosofia do preflight:** errar cedo com mensagem acionável é melhor que errar fundo num `azd provision` de 10 minutos com erro enigmático do Bicep.
 
 ### 6. Abrir no navegador
 
