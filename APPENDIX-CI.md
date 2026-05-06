@@ -1,105 +1,157 @@
-# APPENDIX — Setup CI/CD (GitHub Actions)
+# APPENDIX — Detalhes do CI/CD (federated SP + Microsoft Graph)
 
-> Setup avançado pra quem quer rodar `azd provision` automaticamente em GitHub Actions. **Não é necessário em primeira execução do template** — você pode pular este apêndice e voltar quando precisar de pipeline automatizado.
+> Este apêndice complementa o **Caminho A** do [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) com detalhes técnicos do federated Service Principal e das permissões Microsoft Graph. Você só precisa ler isto se algo no passo 3 do Quick Start falhou OU se quer entender o "porquê" das decisões.
 
 ---
 
-## Permissão Microsoft Graph para `auth_init.py` em CI
+## Por que federated OIDC e não secret estático?
 
-O workflow `.github/workflows/setup-aad.yml` (e o `azure-dev.yml` que chama `azd provision` → preprovision hook → `auth_init.py`) cria App Registrations no AAD via Microsoft Graph API. Pra isso funcionar em CI, o **federated SP** que GitHub Actions usa precisa de:
+Federated OIDC = sem `client_secret` armazenado no GitHub. O token Azure é trocado em runtime quando o workflow roda, usando o JWT do GitHub Actions como prova de identidade. Vantagens:
 
-- **API permission Microsoft Graph `Application.ReadWrite.All`** (Application type, **NÃO** Delegated)
+- ✅ Sem secret pra rotacionar (ou vazar em logs)
+- ✅ Trust escopado por repo + branch (não tenant-wide)
+- ✅ Auditoria limpa: cada `azd up` tem trace OIDC no AAD logs
+
+---
+
+## As 5 GitHub Variables explicadas
+
+| Variable | O que é | Onde pegar |
+|----------|---------|-----------|
+| `AZURE_CLIENT_ID` | App ID do federated SP | `az ad app list --display-name sp-apex-helpsphere-{user}` |
+| `AZURE_TENANT_ID` | Tenant Azure | `az account show --query tenantId -o tsv` |
+| `AZURE_SUBSCRIPTION_ID` | Subscription onde recursos vão | `az account show --query id -o tsv` |
+| `AZURE_ENV_NAME` | Nome do `azd env` (vira sufixo dos recursos) | escolha você (ex: `helpsphere-actions`) |
+| `AZURE_LOCATION` | Região Azure | `westus3` (validado no template) |
+
+> **Por que `vars` e não `secrets`?** Estes 5 valores são **identificadores**, não senhas. Federated OIDC dispensa segredo estático — o token AAD é trocado em runtime. GitHub Variables aparecem em logs (não em mascaramento) e isso está OK porque não há informação sensível.
+
+---
+
+## Federated credential — o que o `--parameters @/tmp/fed.json` faz
+
+```json
+{
+  "name": "github-{user}-main",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:{user}/apex-helpsphere:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+```
+
+Cria um **trust** no Azure AD:
+
+- **Issuer:** `token.actions.githubusercontent.com` — só aceita tokens emitidos pelo GitHub Actions OIDC service
+- **Subject:** `repo:{user}/apex-helpsphere:ref:refs/heads/main` — só aceita workflows rodando NO seu fork, NA branch main
+- **Audience:** `api://AzureADTokenExchange` — público fixo do Azure AD para token exchange
+
+Resultado: GitHub Actions consegue obter um token Azure, mas só rodando no SEU fork na branch main. Tentativa de PR-fork malicioso ou outro repo é rejeitada pelo AAD.
+
+### Adicionar trust pra outros branches
+
+Se você quer o CI rodar em PRs também:
+
+```bash
+APP_OBJECT_ID=$(az ad app show --id $AZURE_CLIENT_ID --query id -o tsv)
+
+cat > /tmp/fed-pr.json <<EOF
+{
+  "name": "github-${GITHUB_USER}-pr",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:${GITHUB_USER}/apex-helpsphere:pull_request",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+EOF
+
+az ad app federated-credential create --id "$APP_OBJECT_ID" --parameters @/tmp/fed-pr.json
+```
+
+---
+
+## Microsoft Graph `Application.ReadWrite.All`
+
+O preprovision hook do `azd provision` chama `scripts/auth_init.py` que **cria 2 App Registrations** no AAD (Server App + Client App). Pra isso, o federated SP precisa de:
+
+- **API permission Microsoft Graph `Application.ReadWrite.All`** (Application type, NÃO Delegated)
 - **Admin consent** dessa permission
 
----
-
-## Configuração (1 vez, depois de `azd pipeline config`)
+A permission ID `1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9` é o GUID dessa role. O passo 3 do Quick Start já roda esses 2 comandos:
 
 ```bash
-# Pegue o SP_APP_ID do federated SP (printado por azd pipeline config)
-SP_APP_ID="<from-azd-pipeline-config>"
-
-# Adiciona permission
-az ad app permission add --id $SP_APP_ID \
-    --api 00000003-0000-0000-c000-000000000000 \
-    --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
-
-# Admin consent
-az ad app permission admin-consent --id $SP_APP_ID
+az ad app permission add --id "$APP_ID" --api 00000003-0000-0000-c000-000000000000 --api-permissions 1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9=Role
+az ad app permission admin-consent --id "$APP_ID"
 ```
 
 ---
 
-## Sintomas de configuração ausente
-
-Sem essa permission, CI falha com:
-
-```
-ERROR: Insufficient privileges to complete the operation
-```
-
-durante a etapa de `auth_init.py` no preprovision hook do `azd provision`.
-
----
-
-## Workflows disponíveis no template
+## Workflows disponíveis
 
 | Workflow | Trigger | Função |
-|---|---|---|
-| `1-validate-bicep.yml` | PR + push em main | Lint + build de todos os Bicep modules |
-| `2-lint-frontend.yml` | PR + push (frontend/) | ESLint + Prettier check |
-| `3-test-backend.yml` | PR + push (app/backend/) | Pytest + ruff + ty + black + Playwright E2E |
-| `4-test-tickets.yml` | PR + push (tickets-service/) | xUnit + dotnet build + dotnet format |
-| `5-deploy.yml` | push em main | `azd provision` + `azd deploy` |
+|----------|---------|--------|
+| **5. Deploy (Azure Container Apps)** | push em main + workflow_dispatch | Provision + Build + Deploy |
+| **Setup Azure AD (manual)** | workflow_dispatch | Recria App Registrations sem reprovisionar (caso tenha deletado) |
+| **1. Validate Bicep** | PR + push (infra/) | Bicep build + lint |
+| **2. Lint Frontend** | PR + push (app/frontend/) | ESLint + Prettier check |
+| **3. Test Backend** | PR + push (app/backend/) | Pytest + ruff + ty + black + Playwright |
+| **4. Test Tickets** | PR + push (tickets-service/) | xUnit + dotnet build + dotnet format |
 
-Numeração 1-5 foi cravada na Sessão 9.6 (cleanup final) pra forçar ordem visível na aba Actions do GitHub.
-
----
-
-## Federated SP e OIDC
-
-`azd pipeline config` configura federated identity (sem secret estático). O SP recebe trust em:
-
-- `repo:tftec-guilherme/apex-helpsphere:ref:refs/heads/main`
-- `repo:tftec-guilherme/apex-helpsphere:pull_request`
-- `repo:tftec-guilherme/apex-helpsphere:environment:helpsphere-actions`
-
-Trust subjects podem ser ajustados em **Azure Portal** → App Registration do SP → **Certificates & secrets** → **Federated credentials**.
+> Numeração **1-5** foi cravada na Sessão 9.6 (cleanup final) pra forçar ordem visível na aba Actions do GitHub.
 
 ---
 
-## Roles necessárias no SP
+## Troubleshooting CI
 
-Para o pipeline rodar `azd provision` end-to-end:
+### `AADSTS70021: No matching federated identity record found`
 
-| Role | Scope | Por quê |
-|---|---|---|
-| `Owner` | Subscription OU Resource Group | Criar resources + role assignments |
-| `Application.ReadWrite.All` | Microsoft Graph (tenant) | `auth_init.py` cria App Registrations |
+Sintoma: workflow falha no passo `azure/login@v2`.
 
-> Em prod com tenant restritivo, considere split: SP de provisionamento com `Contributor` no RG + SP separado pra Microsoft Graph (rotina cross-tenant).
+Causa: o `subject` da federated credential não bate com o que o GitHub está mandando.
 
----
+Fix: confira que o `subject` no JSON é exatamente `repo:{user}/apex-helpsphere:ref:refs/heads/main`. Se você renomeou seu fork ou está em outra branch, atualize.
 
-## Debugging CI com `act` localmente
+### `Insufficient privileges to complete the operation`
 
-Para reproduzir o pipeline antes de pushar:
+Sintoma: `auth_init.py` no preprovision aborta com 403.
 
+Causa: faltou rodar o `permission admin-consent`.
+
+Fix:
 ```bash
-# Instalar act (Docker required)
-# macOS: brew install act
-# Linux: curl https://raw.githubusercontent.com/nektos/act/master/install.sh | bash
-
-# Rodar workflow localmente (simula GitHub Actions runner)
-act -W .github/workflows/3-test-backend.yml -j test
+az ad app permission admin-consent --id "$AZURE_CLIENT_ID"
 ```
 
-> `act` não suporta federated OIDC — para testar `5-deploy.yml`, use branch de teste no remoto.
+### `The subscription 'XXX' could not be found`
+
+Sintoma: `azd provision` falha logo no início.
+
+Causa: `AZURE_SUBSCRIPTION_ID` não está visível pro federated SP.
+
+Fix: confirme que você atribuiu role `Owner` na subscription:
+```bash
+az role assignment create --assignee "$AZURE_CLIENT_ID" --role "Owner" --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID"
+```
+
+### Workflow `5. Deploy` não aparece na lista
+
+Causa: Actions ainda não habilitado no fork.
+
+Fix: aba **Actions** → botão **"I understand my workflows, go ahead and enable them"**.
+
+---
+
+## Por que NÃO usar `azd pipeline config`
+
+`azd pipeline config` é um comando que automatiza tudo isto — mas tem 2 problemas para uso pedagógico:
+
+1. **Cria SP genérico** sem nome customizado por aluno (todos viram `azd-pipeline-...`)
+2. **Faz commit automático** no seu repo, adicionando workflow files que duplicam os do template
+
+O passo 3 do Quick Start é **explícito e didático** — você vê cada permissão sendo concedida. Em produção, `azd pipeline config` é OK; pra disciplina, queremos transparência.
 
 ---
 
 ## Referências
 
 - [Federated identity para GitHub Actions](https://learn.microsoft.com/azure/active-directory/develop/workload-identity-federation)
-- [`azd pipeline config`](https://learn.microsoft.com/azure/developer/azure-developer-cli/reference#azd-pipeline-config)
-- [Microsoft Graph permissions](https://learn.microsoft.com/graph/permissions-reference)
+- [Microsoft Graph permissions reference](https://learn.microsoft.com/graph/permissions-reference)
+- [GitHub OIDC tokens](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
