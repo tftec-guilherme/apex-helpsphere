@@ -160,6 +160,16 @@ param sqlAadAdminGroupName string = ''
 param sqlAadAdminGroupObjectId string = ''
 @description('Carregar seeds (5 tenants Apex + 50 tickets pt-BR + 70 comments) automaticamente no postprovision.')
 param loadSeedData bool = true
+
+// =============================================================================
+// SAAS-ONLY MODE (apex-helpsphere base)
+// =============================================================================
+// Master flag para desabilitar TUDO de IA. Default false (apex-helpsphere
+// e SaaS base sem IA — IA provisiona-se nos labs Inter/Final/Avancado).
+// Set true se quiser deploy completo do template upstream.
+// =============================================================================
+@description('Deploy IA stack (OpenAI, AI Search, Doc Intel, Vision, Speech, Cosmos chat). Default false para SaaS-only.')
+param deployIaStack bool = false
 param chatHistoryContainerName string = 'chat-history-v2'
 param chatHistoryVersion string = 'cosmosdb-v2'
 
@@ -922,7 +932,7 @@ var openAiDeployments = concat(
     : []
 )
 
-module openAi 'br/public:avm/res/cognitive-services/account:0.7.2' = if (isAzureOpenAiHost && deployAzureOpenAi) {
+module openAi 'br/public:avm/res/cognitive-services/account:0.7.2' = if (isAzureOpenAiHost && deployAzureOpenAi && deployIaStack) {
   name: 'openai'
   scope: openAiResourceGroup
   params: {
@@ -947,7 +957,7 @@ module openAi 'br/public:avm/res/cognitive-services/account:0.7.2' = if (isAzure
 
 // Formerly known as Form Recognizer
 // Does not support bypass
-module documentIntelligence 'br/public:avm/res/cognitive-services/account:0.7.2' = {
+module documentIntelligence 'br/public:avm/res/cognitive-services/account:0.7.2' = if (deployIaStack) {
   name: 'documentintelligence'
   scope: documentIntelligenceResourceGroup
   params: {
@@ -970,7 +980,7 @@ module documentIntelligence 'br/public:avm/res/cognitive-services/account:0.7.2'
   }
 }
 
-module vision 'br/public:avm/res/cognitive-services/account:0.7.2' = if (useMultimodal) {
+module vision 'br/public:avm/res/cognitive-services/account:0.7.2' = if (useMultimodal && deployIaStack) {
   name: 'vision'
   scope: visionResourceGroup
   params: {
@@ -1014,7 +1024,7 @@ module contentUnderstanding 'br/public:avm/res/cognitive-services/account:0.7.2'
   }
 }
 
-module speech 'br/public:avm/res/cognitive-services/account:0.7.2' = if (useSpeechOutputAzure) {
+module speech 'br/public:avm/res/cognitive-services/account:0.7.2' = if (useSpeechOutputAzure && deployIaStack) {
   name: 'speech-service'
   scope: speechResourceGroup
   params: {
@@ -1032,7 +1042,7 @@ module speech 'br/public:avm/res/cognitive-services/account:0.7.2' = if (useSpee
     restore: restoreCognitiveServices
   }
 }
-module searchService 'core/search/search-services.bicep' = {
+module searchService 'core/search/search-services.bicep' = if (deployIaStack) {
   name: 'search-service'
   scope: searchServiceResourceGroup
   params: {
@@ -1165,7 +1175,7 @@ module adlsStorage 'core/storage/storage-account.bicep' = if (useCloudIngestionA
 //   1. Delete the old container manually (Azure Portal > Cosmos DB > Data Explorer) and re-deploy, OR
 //   2. Override chatHistoryContainerName with a new name (e.g. 'chat-history-v3') via azd env set.
 // This is an ARM/Cosmos DB platform limitation — Bicep cannot conditionally skip container updates.
-module cosmosDb 'br/public:avm/res/document-db/database-account:0.6.1' = if (useAuthentication && useChatHistoryCosmos) {
+module cosmosDb 'br/public:avm/res/document-db/database-account:0.6.1' = if (useAuthentication && useChatHistoryCosmos && deployIaStack) {
   name: 'cosmosdb'
   scope: cosmosDbResourceGroup
   params: {
@@ -1322,7 +1332,7 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
 // USER ROLES
 var principalType = empty(runningOnGh) && empty(runningOnAdo) ? 'User' : 'ServicePrincipal'
 
-module openAiRoleUser 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
+module openAiRoleUser 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && deployIaStack) {
   scope: openAiResourceGroup
   name: 'openai-role-user'
   params: {
@@ -1333,7 +1343,7 @@ module openAiRoleUser 'core/security/role.bicep' = if (isAzureOpenAiHost && depl
 }
 
 // For both Document Intelligence and AI vision
-module cognitiveServicesRoleUser 'core/security/role.bicep' = {
+module cognitiveServicesRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   scope: resourceGroup
   name: 'cognitiveservices-role-user'
   params: {
@@ -1343,7 +1353,7 @@ module cognitiveServicesRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module speechRoleUser 'core/security/role.bicep' = {
+module speechRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   scope: speechResourceGroup
   name: 'speech-role-user'
   params: {
@@ -1383,7 +1393,7 @@ module storageOwnerRoleUser 'core/security/role.bicep' = if (useUserUpload) {
   }
 }
 
-module searchRoleUser 'core/security/role.bicep' = {
+module searchRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-role-user'
   params: {
@@ -1393,7 +1403,7 @@ module searchRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module searchContribRoleUser 'core/security/role.bicep' = {
+module searchContribRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-contrib-role-user'
   params: {
@@ -1403,7 +1413,7 @@ module searchContribRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module searchSvcContribRoleUser 'core/security/role.bicep' = {
+module searchSvcContribRoleUser 'core/security/role.bicep' = if (deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-svccontrib-role-user'
   params: {
@@ -1413,7 +1423,7 @@ module searchSvcContribRoleUser 'core/security/role.bicep' = {
   }
 }
 
-module cosmosDbAccountContribRoleUser 'core/security/role.bicep' = if (useAuthentication && useChatHistoryCosmos) {
+module cosmosDbAccountContribRoleUser 'core/security/role.bicep' = if (useAuthentication && useChatHistoryCosmos && deployIaStack) {
   scope: cosmosDbResourceGroup
   name: 'cosmosdb-account-contrib-role-user'
   params: {
@@ -1425,7 +1435,7 @@ module cosmosDbAccountContribRoleUser 'core/security/role.bicep' = if (useAuthen
 
 // RBAC for Cosmos DB
 // https://learn.microsoft.com/azure/cosmos-db/nosql/security/how-to-grant-data-plane-role-based-access
-module cosmosDbDataContribRoleUser 'core/security/documentdb-sql-role.bicep' = if (useAuthentication && useChatHistoryCosmos) {
+module cosmosDbDataContribRoleUser 'core/security/documentdb-sql-role.bicep' = if (useAuthentication && useChatHistoryCosmos && deployIaStack) {
   scope: cosmosDbResourceGroup
   name: 'cosmosdb-data-contrib-role-user'
   params: {
@@ -1439,7 +1449,7 @@ module cosmosDbDataContribRoleUser 'core/security/documentdb-sql-role.bicep' = i
 }
 
 // SYSTEM IDENTITIES
-module openAiRoleBackend 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
+module openAiRoleBackend 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && deployIaStack) {
   scope: openAiResourceGroup
   name: 'openai-role-backend'
   params: {
@@ -1451,7 +1461,7 @@ module openAiRoleBackend 'core/security/role.bicep' = if (isAzureOpenAiHost && d
   }
 }
 
-module openAiRoleSearchService 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && searchServiceSkuName != 'free') {
+module openAiRoleSearchService 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && searchServiceSkuName != 'free' && deployIaStack) {
   scope: openAiResourceGroup
   name: 'openai-role-searchservice'
   params: {
@@ -1461,7 +1471,7 @@ module openAiRoleSearchService 'core/security/role.bicep' = if (isAzureOpenAiHos
   }
 }
 
-module visionRoleSearchService 'core/security/role.bicep' = if (useMultimodal && searchServiceSkuName != 'free') {
+module visionRoleSearchService 'core/security/role.bicep' = if (useMultimodal && searchServiceSkuName != 'free' && deployIaStack) {
   scope: visionResourceGroup
   name: 'vision-role-searchservice'
   params: {
@@ -1496,7 +1506,7 @@ module storageOwnerRoleBackend 'core/security/role.bicep' = if (useUserUpload) {
 }
 
 // Search service needs blob read access for both integrated vectorization and cloud ingestion indexer data source
-module storageRoleSearchService 'core/security/role.bicep' = if ((useIntegratedVectorization || useCloudIngestion) && searchServiceSkuName != 'free') {
+module storageRoleSearchService 'core/security/role.bicep' = if ((useIntegratedVectorization || useCloudIngestion) && searchServiceSkuName != 'free' && deployIaStack) {
   scope: storageResourceGroup
   name: 'storage-role-searchservice'
   params: {
@@ -1506,7 +1516,7 @@ module storageRoleSearchService 'core/security/role.bicep' = if ((useIntegratedV
   }
 }
 
-module storageRoleContributorSearchService 'core/security/role.bicep' = if ((useIntegratedVectorization && useMultimodal) && searchServiceSkuName != 'free') {
+module storageRoleContributorSearchService 'core/security/role.bicep' = if ((useIntegratedVectorization && useMultimodal) && searchServiceSkuName != 'free' && deployIaStack) {
   scope: storageResourceGroup
   name: 'storage-role-contributor-searchservice'
   params: {
@@ -1570,7 +1580,7 @@ module storageRoleContributorBackend 'core/security/role.bicep' = if (deployment
 
 // Used to issue search queries
 // https://learn.microsoft.com/azure/search/search-security-rbac
-module searchRoleBackend 'core/security/role.bicep' = {
+module searchRoleBackend 'core/security/role.bicep' = if (deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-role-backend'
   params: {
@@ -1582,7 +1592,7 @@ module searchRoleBackend 'core/security/role.bicep' = {
   }
 }
 
-module speechRoleBackend 'core/security/role.bicep' = {
+module speechRoleBackend 'core/security/role.bicep' = if (deployIaStack) {
   scope: speechResourceGroup
   name: 'speech-role-backend'
   params: {
@@ -1596,7 +1606,7 @@ module speechRoleBackend 'core/security/role.bicep' = {
 
 // RBAC for Cosmos DB
 // https://learn.microsoft.com/azure/cosmos-db/nosql/security/how-to-grant-data-plane-role-based-access
-module cosmosDbRoleBackend 'core/security/documentdb-sql-role.bicep' = if (useAuthentication && useChatHistoryCosmos) {
+module cosmosDbRoleBackend 'core/security/documentdb-sql-role.bicep' = if (useAuthentication && useChatHistoryCosmos && deployIaStack) {
   scope: cosmosDbResourceGroup
   name: 'cosmosdb-role-backend'
   params: {
@@ -1711,7 +1721,7 @@ module privateEndpoints 'private-endpoints.bicep' = if (usePrivateEndpoint) {
 
 // Used to read index definitions (required when using authentication)
 // https://learn.microsoft.com/azure/search/search-security-rbac
-module searchReaderRoleBackend 'core/security/role.bicep' = if (useAuthentication) {
+module searchReaderRoleBackend 'core/security/role.bicep' = if (useAuthentication && deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-reader-role-backend'
   params: {
@@ -1724,7 +1734,7 @@ module searchReaderRoleBackend 'core/security/role.bicep' = if (useAuthenticatio
 }
 
 // Used to add/remove documents from index (required for user upload feature)
-module searchContribRoleBackend 'core/security/role.bicep' = if (useUserUpload) {
+module searchContribRoleBackend 'core/security/role.bicep' = if (useUserUpload && deployIaStack) {
   scope: searchServiceResourceGroup
   name: 'search-contrib-role-backend'
   params: {
@@ -1737,7 +1747,7 @@ module searchContribRoleBackend 'core/security/role.bicep' = if (useUserUpload) 
 }
 
 // For Azure AI Vision access by the backend
-module visionRoleBackend 'core/security/role.bicep' = if (useMultimodal) {
+module visionRoleBackend 'core/security/role.bicep' = if (useMultimodal && deployIaStack) {
   scope: visionResourceGroup
   name: 'vision-role-backend'
   params: {
@@ -1750,7 +1760,7 @@ module visionRoleBackend 'core/security/role.bicep' = if (useMultimodal) {
 }
 
 // For document intelligence access by the backend
-module documentIntelligenceRoleBackend 'core/security/role.bicep' = if (useUserUpload) {
+module documentIntelligenceRoleBackend 'core/security/role.bicep' = if (useUserUpload && deployIaStack) {
   scope: documentIntelligenceResourceGroup
   name: 'documentintelligence-role-backend'
   params: {
