@@ -1,0 +1,72 @@
+# APPENDIX — 29 Surpresas pedagógicas (v2.1.0)
+
+> Lições aprendidas que **o template Microsoft `azure-search-openai-demo` não documenta**. Todas as 29 estão **automatizadas no template v2.1.0** — você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico desta evolução: ~16h de debugging E2E real (Sessões 9.4-9.5) + cleanup final (Sessão 9.6).
+>
+> Defesa arquitetural completa de cada item em [`DECISION-LOG.md`](./DECISION-LOG.md).
+
+---
+
+## Surpresas operacionais (Sessões 1-5)
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#1** | Free Trial USD 200 não roda Azure OpenAI | PAYG é mandatório. Não tente Free Trial — vai bloquear na quota. |
+| **#2** | `eastus2` sem capacidade SQL/Search em Q2-2026 | Use **`westus3`** ou **`brazilsouth`** para HelpSphere. East US 2 só pra Foundry Hub depois. |
+| **#3** | `pyodbc` 5.1.0 não compila em CPython 3.13 | Bump para `pyodbc==5.2.0` (tem wheel `cp313-cp313-manylinux`). Vide Decisão #14. |
+| **#4** | `azd hooks` (preprovision/postprovision) **não leem env vars do shell** | Eles leem só do `.azure/<env>/.env`. Use `azd env set` antes de provision para garantir hooks veem o que precisam. Decisão #15. |
+| **#5** | Smoke test 30s pega container em state `Activating` | Cold start de gunicorn + token MI pode levar 1-3min. Use retry loop, não single-shot. Decisão #15. |
+| **#6** | "Backend MI tem acesso ao banco" ≠ least privilege real | Least privilege real é **9 grants object-level scoped a tabelas específicas**, verificável via `sys.database_permissions`. Decisão #16. |
+| **#7** | Endpoints deprecated devem retornar **HTTP 410 Gone** + `Link: rel="successor-version"` (RFC 8288) | É o padrão profissional. Não use 404 (silencioso) nem 301 (mantém keep-alive). Decisão #16. |
+| **#8** | `git ls-files` ignora arquivos do `.gitignore` raiz mesmo em monorepos | Auditar `git ls-files --others --ignored --exclude-standard` antes de extração de monorepo. Decisão #13. |
+| **#9** | Cognitive Services soft-deleted bloqueiam re-provisão por 90 dias | Use `RESTORE_COGNITIVE_SERVICES=true` no workflow OU sempre `azd down --purge`. Decisão #11. |
+| **#10** | Bicep AVM modules têm breaking changes não documentados | `bicep build` antes de PR (CodeRabbit não roda). Decisão #9. |
+
+---
+
+## Surpresas first-run no laptop (Sessões 9.1-9.2)
+
+Estas surpresas só aparecem quando você roda `azd up` **na primeira vez no seu laptop** (vs no CI do GitHub Actions). Foram documentadas pelo professor durante a primeira execução real fora do CI.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#11** | `prepdocs.ps1` e `sql_init.ps1` com acentos UTF-8 quebram em Windows PowerShell 5 | `pwsh` (PS7) não está no PATH por default no Windows; `azd` faz fallback pra `powershell.exe` (PS5). PS5 lê UTF-8 sem BOM em locale pt-BR como cp1252 → "string sem terminador" em palavras com `é`, `ã`, `ç`. **Fix permanente:** scripts pwsh do template já estão em ASCII puro. Lição: se editar scripts, mantenha ASCII ou explicite encoding. |
+| **#12** | `sql_init.py` REVOKE falha em first-run | `ALTER ROLE db_datareader DROP MEMBER [backend-mi]` falha com 15151 porque o user MI ainda não foi criado no banco em first-run. **Fix permanente:** guard `IF DATABASE_PRINCIPAL_ID('{name}') IS NOT NULL` antes do ALTER ROLE. Lição: scripts de DB migration idempotentes precisam testar TANTO first-run QUANTO re-run. |
+| **#13** | `sql_init.py` GRANT antes de schema migration falha | Ordem original `CREATE USER + GRANT → migrations` falhava com 15151 ("Cannot find object tbl_tenants"). **Fix permanente:** `CREATE TABLE` ANTES de `CREATE USER` ANTES de `GRANT scoped`. Lição: ordering de migrations + grants é não-trivial. |
+| **#14** | ODBC Driver 18 + `Authentication=ActiveDirectoryMsi` + User-Assigned MI em Linux = `HYT00 Login timeout` | O driver não obtém token AAD corretamente do IMDS quando há UMI atribuída. **NÃO é bug de network/firewall** — é bug do driver. **Fix permanente (Decisão #17):** obter token via `azure.identity.ManagedIdentityCredential(client_id=AZURE_CLIENT_ID)` e injetar via `SQL_COPT_SS_ACCESS_TOKEN` em `attrs_before` da pyodbc connection. Tickets-service .NET nunca teve o bug porque `Microsoft.Data.SqlClient` resolve UMI corretamente. |
+| **#15** | ODBC Driver 18 NÃO vem por default em Windows | Sintoma: `pyodbc.InterfaceError IM002 - Driver Manager - Nome da fonte de dados não encontrada`. **Solução:** `winget install --id Microsoft.msodbcsql.18 --silent --accept-package-agreements --accept-source-agreements`. |
+| **#16** | `az account set --subscription` se perde entre janelas PowerShell novas | Sintoma: comando `az` aleatoriamente retorna `ResourceGroupNotFound` mesmo quando o RG existe. **Solução:** sempre rodar `az account set --subscription <SUB_ID>` no início de cada nova sessão PowerShell. |
+| **#17** | ACA Outbound Static IP precisa estar no firewall do SQL Server (não basta `AllowAllAzureIPs`) | Sintoma: mesmo com `AllowAllAzureIPs` (0.0.0.0/0.0.0.0), Container App backend dá `HYT00 Login timeout`. **Solução:** descobrir o IP estático do ACA Environment e adicionar regra explícita: `az containerapp env show --query "properties.staticIp"` → `az sql server firewall-rule create --name "ACAOutboundIP" --start-ip-address $IP --end-ip-address $IP`. **Nota:** o template já configura essa regra automaticamente em `infra/main.bicep`. |
+| **#18** | Azure SQL Serverless `autoPauseDelay` causa cold-start de 30-60s | Se DB pausada, primeira request leva 30-60s para resumir. Backend Python com `Connection Timeout=30s` falhava no resume; tickets-service .NET tinha primeira request lenta. **Fix permanente (Decisão #18):** `autoPauseDelay = -1` no Bicep (DB sempre Online; trade-off ~$15-30/mês vs interrupção em demo gravada) + Connection Timeout 60s no DSN. Aluno em produção real pode reverter para 60min se aceitar o trade-off. |
+
+---
+
+## Surpresas E2E auth + UI (Sessões 9.4-9.5)
+
+Estas surpresas só aparecem quando você faz o **primeiro login real no browser** após `azd up`. Foram descobertas durante a sessão de 2026-05-05 que validou o fluxo end-to-end pela primeira vez. **Todas foram automatizadas no template v2.1.0** — você só vai ver se modificar o auth flow ou rodar com setup parcialmente quebrado.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#19** | Single-app pattern (1 App Registration servindo SPA + API) crasha com `AADSTS90009: application requesting token for itself` | Microsoft bloqueia self-token. **Two-app pattern obrigatório**: Server App expõe API + Client App SPA consome. `auth_init.py` v2.1.0 cria os 2 automaticamente — não tente "simplificar" pra 1 app. |
+| **#20** | Bicep do template upstream (`azure-search-openai-demo`) seta `AzureAd__Audience: api://{clientAppId}` no tickets-service. Tokens emitidos com `aud=api://{serverAppId}` (correto) falham validação | Bug do template upstream. **Fix permanente:** `tickets-service` Bicep usa `serverAppId` no audience (Decisão #20). |
+| **#21** | URL do tickets-service embarcada no bundle Vite via `VITE_API_TICKETS_URL` (build-time injection). Esquecer de exportar antes de `npm run build` = bundle com path relativo = backend retorna 410 Gone | Anti-pattern build-time pra config de env. **Fix permanente (Decisão #19):** backend expõe `ticketsApiBase` em runtime via `/auth_setup`. Mesmo bundle serve qualquer environment. |
+| **#22** | MSAL.js `loginPopup` retorna `AADSTS650056: Misconfigured application` quando Client App não declara `Microsoft Graph` permissions (User.Read, openid, profile, email, offline_access) | OIDC scopes implícitos exigem Graph perms registradas. **Fix permanente:** `auth_init.py` v2.1.0 declara essas 5 perms no Client App + admin consent automático. |
+| **#23** | Optional Claim com Directory Extension não aparece em **access token** se `Server App.api.requestedAccessTokenVersion != 2` (default null = v1) | v1 access tokens não emitem extension claims via optional claim mechanism. **Fix permanente:** `auth_init.py` v2.1.0 seta `accessTokenAcceptedVersion=2` no Server App. |
+| **#24** | Token v2 emite audience como GUID puro (`{serverAppId}`), não `api://{serverAppId}` (v1 format). Tickets-service .NET configurado pra v1 rejeita com `IDX10214: Audience validation failed` | Format de `aud` muda entre v1 e v2. **Fix permanente (Decisão #20):** Bicep param `tokenAudienceFormat` com default `v2` → audience = GUID puro. Aceita `v1`/`both` se aluno quiser. |
+| **#25** | Claim `app_tenant_id` chega no JWT em **3 formas diferentes** dependendo do tier de licença AAD: forma curta (`app_tenant_id`, requer Claims Mapping Policy P1+), forma longa em ID token (`extension_<serverAppIdNoHyphens>_app_tenant_id`), forma curta em access token v2 (`extn.app_tenant_id`) | Free tier AAD (Decisão Q1B preservada). **Fix permanente (Decisão #21):** `TenantContext.cs` (.NET) e `_resolve_tenant_id` (Python) aceitam as 3 formas. Aluno em qualquer tier funciona. |
+| **#26** | Alpine .NET image (`mcr.microsoft.com/dotnet/aspnet:10.0-alpine`) tem `Globalization Invariant Mode` por default. `Microsoft.Data.SqlClient.SqlConnection.TryOpen` lança `NotSupportedException` sem ICU instalado | Imagem MS Alpine é minimal — falta ICU. **Fix permanente:** `Dockerfile` do tickets-service `apk add icu-libs icu-data-full` + `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`. |
+| **#27** | `Microsoft.Data.SqlClient` v6+ separou auth providers AAD (`ActiveDirectoryManagedIdentity` etc.) para package opcional `Microsoft.Data.SqlClient.Extensions.Azure`. Sem ele, `SqlConnection.OpenAsync` lança `ArgumentException: Cannot find an authentication provider for 'ActiveDirectoryManagedIdentity'` | Breaking change não-óbvio em SqlClient. **Fix permanente (Decisão #22):** `SqlConnectionFactory.cs` faz token explicit injection via `Azure.Identity` (paridade com Decisão #17 do backend Python). Bypassa auth provider system inteiramente, funciona em qualquer versão SqlClient. |
+| **#28** | MSAL.js `loginPopup` engole erros silenciosamente quando popup é bloqueado pelo browser. User clica botão e nada acontece — erro só aparece no console F12 | Browser default em incognito bloqueia popups. **Fix permanente (Decisão #23):** trocar `loginPopup` → `loginRedirect` (navega janela inteira para AAD, robusto contra popup blockers). `LoginGate` componente bloqueante substitui "click no botão e talvez funcione". |
+| **#29** | `loginRedirect` quebra silenciosamente se a rota `/redirect` retornar página em branco. Browser volta de Microsoft com `#code=...` no hash, mas React não monta → `handleRedirectPromise()` nunca processa o token | Template original assumia popup-only. **Fix permanente:** rota `/redirect` no backend serve `index.html` (não blank string). `index.tsx` chama `handleRedirectPromise()` no boot do MSAL e redireciona pra `/` após processar hash. |
+
+---
+
+## Política de revisão
+
+Quando uma nova surpresa for descoberta em produção:
+
+1. Documentar aqui com sintoma + causa raiz + fix permanente
+2. Cravar Decisão correspondente em `DECISION-LOG.md` se for arquitetural
+3. Bumpar contador no [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) e [`README.md`](./README.md)
+4. Tag de release nova (semver)
+
+> **Total atual:** 29 surpresas → 29 fixes permanentes no template.
