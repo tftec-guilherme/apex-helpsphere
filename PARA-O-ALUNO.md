@@ -216,6 +216,53 @@ azd down --purge
 
 ---
 
+## 🔄 Reset total (se algo deu errado e você quer começar do zero)
+
+Use estes comandos se uma execução parcial deixou state quebrado (App Regs órfãs, SP sem role, RG com recursos não-completos). PowerShell:
+
+```powershell
+# Configure
+$GITHUB_USER = "SEU_USUARIO"
+$SUB_ID = (az account show --query id -o tsv)
+$RG_NAME = "rg-d06-dev-001"   # ou seu AZURE_ENV_NAME
+
+# 1) Lista App Registrations criadas pelo template (auditoria visual antes de deletar)
+az ad app list --display-name "helpsphere" --query "[].{name:displayName, appId:appId, id:id}" -o table
+az ad app list --display-name "helpsphere-client" --query "[].{name:displayName, appId:appId, id:id}" -o table
+az ad app list --display-name "sp-apex-helpsphere-$GITHUB_USER" --query "[].{name:displayName, appId:appId, id:id}" -o table
+
+# 2) Deleta as 3 App Regs (deletando App, SP companion e federated cred caem juntos)
+az ad app list --display-name "helpsphere" --query "[].id" -o tsv | ForEach-Object { az ad app delete --id $_ }
+az ad app list --display-name "helpsphere-client" --query "[].id" -o tsv | ForEach-Object { az ad app delete --id $_ }
+az ad app list --display-name "sp-apex-helpsphere-$GITHUB_USER" --query "[].id" -o tsv | ForEach-Object { az ad app delete --id $_ }
+
+# 3) Deleta o Resource Group
+$RG_EXISTS = az group exists --name $RG_NAME
+if ($RG_EXISTS -eq "true") {
+    az group delete --name $RG_NAME --yes --no-wait
+    Write-Host "RG $RG_NAME marcado pra delecao em background."
+}
+
+# 4) Purga Cognitive Services em soft-delete (libera nomes <90 dias)
+$DELETED_COG = az cognitiveservices account list-deleted --query "[?contains(name, 'helpsphere') || contains(name, 'apex')].{name:name, location:location, resourceGroup:resourceGroup}" -o json | ConvertFrom-Json
+foreach ($cog in $DELETED_COG) {
+    Write-Host "Purgando $($cog.name)..."
+    az cognitiveservices account purge --name $cog.name --resource-group $cog.resourceGroup --location $cog.location 2>$null
+}
+
+# 5) Deleta o azd env local
+azd env delete --no-prompt 2>$null
+Remove-Item -Path .azure -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host ""
+Write-Host "Reset completo. Volte para o passo 3 (criar SP) e refaca do zero."
+Write-Host "Os GitHub Variables ja configuradas continuam valendo se voce vai recriar com mesma identidade."
+```
+
+**Após reset:** volte para [Passo 3 — Criar Service Principal](#3-criar-o-service-principal-federated-1-vez). O preflight do workflow vai validar 8 checks e te guiar passo a passo se algo falhar.
+
+---
+
 ## 🗺️ Os 3 labs da disciplina
 
 | Lab | Você adiciona | Companion público |
