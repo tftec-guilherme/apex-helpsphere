@@ -20,12 +20,10 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    # Run when commits are pushed to mainline branch (main or master)
-    # Set this to the mainline branch you are using
-    branches:
-      - main
-      - master
+  # Trigger automatico em push REMOVIDO — apex-helpsphere e SaaS base
+  # (sem IA). Deploy so via workflow_dispatch (Run workflow manual).
+  # IA stack provisiona-se nos labs Inter/Final/Avancado, passo-a-passo
+  # no Portal Azure (guias em Disciplina_06_*/01_Aulas/Lab_*_Guia_Portal.md).
 
 # GitHub Actions workflow to deploy to Azure using azd
 # To configure required secrets for connecting to Azure, simply run `azd pipeline config`
@@ -275,7 +273,12 @@ jobs:
       AZURE_OPENAI_EMB_DEPLOYMENT_CAPACITY: ${{ vars.AZURE_OPENAI_EMB_DEPLOYMENT_CAPACITY }}
       AZURE_OPENAI_EMB_DEPLOYMENT_VERSION: ${{ vars.AZURE_OPENAI_EMB_DEPLOYMENT_VERSION }}
       AZURE_OPENAI_EMB_DIMENSIONS: ${{ vars.AZURE_OPENAI_EMB_DIMENSIONS }}
-      USE_EVAL: ${{ vars.USE_EVAL }}
+      # ────────────────────────────────────────────────────
+      # IA stack DESABILITADO no apex-helpsphere base.
+      # Vars hardcoded como "false" — aluno nao precisa configurar.
+      # IA provisiona-se nos labs Inter/Final/Avancado passo-a-passo.
+      # ────────────────────────────────────────────────────
+      USE_EVAL: "false"
       AZURE_OPENAI_EVAL_MODEL: ${{ vars.AZURE_OPENAI_EVAL_MODEL }}
       AZURE_OPENAI_EVAL_MODEL_VERSION: ${{ vars.AZURE_OPENAI_EVAL_MODEL_VERSION }}
       AZURE_OPENAI_EVAL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EVAL_DEPLOYMENT }}
@@ -289,20 +292,20 @@ jobs:
       AZURE_APPLICATION_INSIGHTS: ${{ vars.AZURE_APPLICATION_INSIGHTS }}
       AZURE_APPLICATION_INSIGHTS_DASHBOARD: ${{ vars.AZURE_APPLICATION_INSIGHTS_DASHBOARD }}
       AZURE_LOG_ANALYTICS: ${{ vars.AZURE_LOG_ANALYTICS }}
-      USE_VECTORS: ${{ vars.USE_VECTORS }}
-      USE_MULTIMODAL: ${{ vars.USE_MULTIMODAL }}
-      USE_CLOUD_INGESTION: ${{ vars.USE_CLOUD_INGESTION }}
-      USE_CLOUD_INGESTION_ACLS: ${{ vars.USE_CLOUD_INGESTION_ACLS }}
+      USE_VECTORS: "false"
+      USE_MULTIMODAL: "false"
+      USE_CLOUD_INGESTION: "false"
+      USE_CLOUD_INGESTION_ACLS: "false"
       RESTORE_COGNITIVE_SERVICES: ${{ vars.RESTORE_COGNITIVE_SERVICES }}
       USE_EXISTING_ADLS_STORAGE: ${{ vars.USE_EXISTING_ADLS_STORAGE }}
       AZURE_ADLS_GEN2_STORAGE_ACCOUNT: ${{ vars.AZURE_ADLS_GEN2_STORAGE_ACCOUNT }}
       AZURE_ADLS_GEN2_STORAGE_RESOURCE_GROUP: ${{ vars.AZURE_ADLS_GEN2_STORAGE_RESOURCE_GROUP }}
       AZURE_VISION_ENDPOINT: ${{ vars.AZURE_VISION_ENDPOINT }}
       VISION_SECRET_NAME: ${{ vars.VISION_SECRET_NAME }}
-      ENABLE_LANGUAGE_PICKER: ${{ vars.ENABLE_LANGUAGE_PICKER }}
-      USE_SPEECH_INPUT_BROWSER: ${{ vars.USE_SPEECH_INPUT_BROWSER }}
-      USE_SPEECH_OUTPUT_BROWSER: ${{ vars.USE_SPEECH_OUTPUT_BROWSER }}
-      USE_SPEECH_OUTPUT_AZURE: ${{ vars.USE_SPEECH_OUTPUT_AZURE }}
+      ENABLE_LANGUAGE_PICKER: "false"
+      USE_SPEECH_INPUT_BROWSER: "false"
+      USE_SPEECH_OUTPUT_BROWSER: "false"
+      USE_SPEECH_OUTPUT_AZURE: "false"
       AZURE_SPEECH_SERVICE: ${{ vars.AZURE_SPEECH_SERVICE }}
       AZURE_SPEECH_SERVICE_RESOURCE_GROUP: ${{ vars.AZURE_SPEECH_RESOURCE_GROUP }}
       AZURE_SPEECH_SERVICE_LOCATION: ${{ vars.AZURE_SPEECH_SERVICE_LOCATION }}
@@ -320,16 +323,16 @@ jobs:
       AZURE_ADLS_GEN2_FILESYSTEM: ${{ vars.AZURE_ADLS_GEN2_FILESYSTEM }}
       DEPLOYMENT_TARGET: ${{ vars.DEPLOYMENT_TARGET }}
       AZURE_CONTAINER_APPS_WORKLOAD_PROFILE: ${{ vars.AZURE_CONTAINER_APPS_WORKLOAD_PROFILE }}
-      USE_CHAT_HISTORY_BROWSER: ${{ vars.USE_CHAT_HISTORY_BROWSER }}
-      USE_MEDIA_DESCRIBER_AZURE_CU: ${{ vars.USE_MEDIA_DESCRIBER_AZURE_CU }}
-      USE_AI_PROJECT: ${{ vars.USE_AI_PROJECT }}
+      USE_CHAT_HISTORY_BROWSER: "false"
+      USE_MEDIA_DESCRIBER_AZURE_CU: "false"
+      USE_AI_PROJECT: "false"
       RAG_SEARCH_TEXT_EMBEDDINGS: ${{ vars.RAG_SEARCH_TEXT_EMBEDDINGS }}
       RAG_SEARCH_IMAGE_EMBEDDINGS: ${{ vars.RAG_SEARCH_IMAGE_EMBEDDINGS }}
       RAG_SEND_TEXT_SOURCES: ${{ vars.RAG_SEND_TEXT_SOURCES }}
       RAG_SEND_IMAGE_SOURCES: ${{ vars.RAG_SEND_IMAGE_SOURCES }}
-      USE_AGENTIC_KNOWLEDGEBASE: ${{ vars.USE_AGENTIC_KNOWLEDGEBASE }}
-      USE_WEB_SOURCE: ${{ vars.USE_WEB_SOURCE }}
-      USE_SHAREPOINT_SOURCE: ${{ vars.USE_SHAREPOINT_SOURCE }}
+      USE_AGENTIC_KNOWLEDGEBASE: "false"
+      USE_WEB_SOURCE: "false"
+      USE_SHAREPOINT_SOURCE: "false"
       # HelpSphere — Story 06.5a Sessão 2.3 (SQL access) + Sessão 4 (env vars)
       AZURE_SQL_AAD_ADMIN_GROUP_NAME: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_NAME }}
       AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID: ${{ vars.AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID }}
@@ -406,7 +409,7 @@ jobs:
 
           azd env set USE_SQL_SERVER "${USE_SQL_SERVER:-true}"
           azd env set RESTORE_COGNITIVE_SERVICES "${RESTORE_COGNITIVE_SERVICES:-true}"
-          azd env set USE_MULTIMODAL "${USE_MULTIMODAL:-true}"
+          azd env set USE_MULTIMODAL "false"
           azd env set AZURE_LOAD_SEED_DATA "${AZURE_LOAD_SEED_DATA:-true}"
           azd env set DEPLOYMENT_TARGET "${DEPLOYMENT_TARGET:-containerapps}"
           azd env set AZURE_USE_AUTHENTICATION "${AZURE_USE_AUTHENTICATION:-false}"
