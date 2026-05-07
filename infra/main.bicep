@@ -366,6 +366,11 @@ param useAiProject bool = false
 
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+// Token curto (4 chars) para appendar em recursos com unicidade global rigida
+// (Storage, ACR, SQL Server) — mantem nome legivel mas evita colisao entre alunos.
+var shortToken = take(resourceToken, 4)
+// Slug do environmentName em lowercase sem hifens — para Storage/ACR que nao aceitam '-'
+var envSlug = toLower(replace(environmentName, '-', ''))
 var tags = { 'azd-env-name': environmentName }
 
 var tenantIdForAuth = !empty(authTenantId) ? authTenantId : tenantId
@@ -504,10 +509,10 @@ module monitoring 'core/monitor/monitoring.bicep' = if (useApplicationInsights) 
     tags: tags
     applicationInsightsName: !empty(applicationInsightsName)
       ? applicationInsightsName
-      : '${abbrs.insightsComponents}${resourceToken}'
+      : '${abbrs.insightsComponents}${environmentName}'
     logAnalyticsName: !empty(logAnalyticsName)
       ? logAnalyticsName
-      : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+      : '${abbrs.operationalInsightsWorkspaces}${environmentName}'
     publicNetworkAccess: publicNetworkAccess
   }
 }
@@ -518,7 +523,7 @@ module applicationInsightsDashboard 'backend-dashboard.bicep' = if (useApplicati
   params: {
     name: !empty(applicationInsightsDashboardName)
       ? applicationInsightsDashboardName
-      : '${abbrs.portalDashboards}${resourceToken}'
+      : '${abbrs.portalDashboards}${environmentName}'
     location: location
     applicationInsightsName: useApplicationInsights ? monitoring!.outputs.applicationInsightsName : ''
   }
@@ -698,7 +703,7 @@ module containerApps 'core/host/container-apps.bicep' = if (deploymentTarget == 
     tags: tags
     location: location
     containerAppsEnvironmentName: acaManagedEnvironmentName
-    containerRegistryName: '${containerRegistryName}${resourceToken}'
+    containerRegistryName: 'acr${envSlug}${shortToken}'
     logAnalyticsWorkspaceName: useApplicationInsights ? monitoring!.outputs.logAnalyticsWorkspaceName : ''
     subnetResourceId: usePrivateEndpoint ? isolation!.outputs.appSubnetId : ''
     usePrivateIngress: usePrivateEndpoint
@@ -1079,7 +1084,7 @@ module storage 'core/storage/storage-account.bicep' = {
   name: 'storage'
   scope: storageResourceGroup
   params: {
-    name: !empty(storageAccountName) ? storageAccountName : '${abbrs.storageStorageAccounts}${resourceToken}'
+    name: !empty(storageAccountName) ? storageAccountName : '${abbrs.storageStorageAccounts}${envSlug}${shortToken}'
     location: storageResourceGroupLocation
     tags: tags
     publicNetworkAccess: publicNetworkAccess
@@ -1273,7 +1278,7 @@ module sqlServer 'br/public:avm/res/sql/server:0.10.0' = if (useSqlServer && !em
   scope: resourceGroup
   name: 'sql-server'
   params: {
-    name: !empty(sqlServerName) ? sqlServerName : '${abbrs.sqlServers}${resourceToken}'
+    name: !empty(sqlServerName) ? sqlServerName : '${abbrs.sqlServers}${environmentName}-${shortToken}'
     location: location
     administrators: {
       administratorType: 'ActiveDirectory'
