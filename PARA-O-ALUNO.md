@@ -19,7 +19,6 @@ Este repo é o HelpSphere base SaaS. Você clona, deploya local, e o turbina nos
 ### Conta Azure
 - **Pay-As-You-Go**, **Visual Studio Enterprise** ou **Free Trial $200 USD** com role **Owner** na subscription
 - Free Trial **funciona para esta versão SaaS-only** (~$3-5/dia em westus3 = ~50 dias com $200 credit) porque IA stack está desligada (`DEPLOY_IA_STACK=false`). Se você for fazer os 3 labs (Inter/Final/Avançado) que provisionam Azure OpenAI, **converta para PAYG antes** — Free Trial bloqueia em quota de OpenAI.
-- ⚠️ Se sua conta é `live.com` Visual Studio Enterprise, ela pode ter ABAC condition que bloqueia atribuição de Owner/UAA/RBAC Admin (Surpresa #31). Para SaaS-only via `azd up` direto isso não bloqueia, mas se você quiser CI/CD fork-by-student, vai precisar de TFTEC sub ou contornar.
 
 ### Conta GitHub
 - Apenas para fork do repo (sem CI/CD nesta versão SaaS-only)
