@@ -561,7 +561,7 @@ var appEnvVariables = {
   AZURE_SUBSCRIPTION_ID: subscription().subscriptionId
   AZURE_SEARCH_INDEX: searchIndexName
   AZURE_SEARCH_KNOWLEDGEBASE_NAME: knowledgeBaseName
-  AZURE_SEARCH_SERVICE: searchService.outputs.name
+  AZURE_SEARCH_SERVICE: deployIaStack ? searchService!.outputs.name : ''
   AZURE_SEARCH_SEMANTIC_RANKER: actualSearchServiceSemanticRankerLevel
   AZURE_SEARCH_QUERY_REWRITING: searchServiceQueryRewriting
   AZURE_VISION_ENDPOINT: useMultimodal ? vision!.outputs.endpoint : ''
@@ -594,7 +594,7 @@ var appEnvVariables = {
   AZURE_OPENAI_REASONING_EFFORT: defaultReasoningEffort
   AGENTIC_KNOWLEDGEBASE_REASONING_EFFORT: defaultRetrievalReasoningEffort
   // Specific to Azure OpenAI
-  AZURE_OPENAI_SERVICE: isAzureOpenAiHost && deployAzureOpenAi ? openAi!.outputs.name : ''
+  AZURE_OPENAI_SERVICE: isAzureOpenAiHost && deployAzureOpenAi && deployIaStack ? openAi!.outputs.name : ''
   AZURE_OPENAI_CHATGPT_DEPLOYMENT: chatGpt.deploymentName
   AZURE_OPENAI_EMB_DEPLOYMENT: embedding.deploymentName
   AZURE_OPENAI_knowledgeBase_MODEL: knowledgeBase.modelName
@@ -622,7 +622,7 @@ var appEnvVariables = {
   AZURE_USERSTORAGE_ACCOUNT: useUserUpload ? userStorage!.outputs.name : ''
   AZURE_USERSTORAGE_CONTAINER: useUserUpload ? userStorageContainerName : ''
   AZURE_IMAGESTORAGE_CONTAINER: useMultimodal ? imageStorageContainerName : ''
-  AZURE_DOCUMENTINTELLIGENCE_SERVICE: documentIntelligence.outputs.name
+  AZURE_DOCUMENTINTELLIGENCE_SERVICE: deployIaStack ? documentIntelligence!.outputs.name : ''
   USE_LOCAL_PDF_PARSER: useLocalPdfParser
   USE_LOCAL_HTML_PARSER: useLocalHtmlParser
   USE_MEDIA_DESCRIBER_AZURE_CU: useMediaDescriberAzureCU
@@ -631,7 +631,7 @@ var appEnvVariables = {
   // HelpSphere — Story 06.5a Sessão 2.3 (SQL access)
   // Sessão 3.5: FQDN construído via environment().suffixes.sqlServerHostname
   // (módulo AVM sql/server:0.10.0 não expõe fullyQualifiedDomainName) — Decisão #9
-  AZURE_SQL_SERVER: useSqlServer ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
+  AZURE_SQL_SERVER: useSqlServer && !empty(sqlAadAdminGroupObjectId) ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
   AZURE_SQL_DATABASE: useSqlServer ? sqlDatabaseName : ''
   // RAG Configuration
   RAG_SEARCH_TEXT_EMBEDDINGS: ragSearchTextEmbeddings
@@ -834,7 +834,7 @@ module acaTickets 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
     env: {
       // SqlConnectionFactory: MI auth em prod (UMI clientId), AAD Default em dev
       AZURE_CLIENT_ID: (deploymentTarget == 'containerapps') ? acaTicketsIdentity!.outputs.clientId : ''
-      AZURE_SQL_SERVER: useSqlServer ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
+      AZURE_SQL_SERVER: useSqlServer && !empty(sqlAadAdminGroupObjectId) ? '${sqlServer!.outputs.name}${environment().suffixes.sqlServerHostname}' : ''
       AZURE_SQL_DATABASE: useSqlServer ? sqlDatabaseName : ''
       // Microsoft.Identity.Web JWT bootstrap — usa serverAppId (o resource da API), nao clientAppId.
       // v2.1.0 (Decisão 4.2): audience format parametrizado — default v2 (GUID puro).
@@ -1796,8 +1796,8 @@ output AZURE_OPENAI_EMB_DIMENSIONS int = embedding.dimensions
 output AZURE_OPENAI_CHATGPT_MODEL string = chatGpt.modelName
 
 // Specific to Azure OpenAI
-output AZURE_OPENAI_SERVICE string = isAzureOpenAiHost && deployAzureOpenAi ? openAi!.outputs.name : ''
-output AZURE_OPENAI_ENDPOINT string = isAzureOpenAiHost && deployAzureOpenAi ? openAi!.outputs.endpoint : ''
+output AZURE_OPENAI_SERVICE string = isAzureOpenAiHost && deployAzureOpenAi && deployIaStack ? openAi!.outputs.name : ''
+output AZURE_OPENAI_ENDPOINT string = isAzureOpenAiHost && deployAzureOpenAi && deployIaStack ? openAi!.outputs.endpoint : ''
 output AZURE_OPENAI_RESOURCE_GROUP string = isAzureOpenAiHost ? openAiResourceGroup.name : ''
 output AZURE_OPENAI_CHATGPT_DEPLOYMENT string = isAzureOpenAiHost ? chatGpt.deploymentName : ''
 output AZURE_OPENAI_CHATGPT_DEPLOYMENT_VERSION string = isAzureOpenAiHost ? chatGpt.deploymentVersion : ''
@@ -1823,16 +1823,16 @@ output AZURE_SEARCH_KNOWLEDGEBASE_RETRIEVAL_REASONING_EFFORT string = defaultRet
 output AZURE_VISION_ENDPOINT string = useMultimodal ? vision!.outputs.endpoint : ''
 output AZURE_CONTENTUNDERSTANDING_ENDPOINT string = useMediaDescriberAzureCU ? contentUnderstanding!.outputs.endpoint : ''
 
-output AZURE_DOCUMENTINTELLIGENCE_SERVICE string = documentIntelligence.outputs.name
+output AZURE_DOCUMENTINTELLIGENCE_SERVICE string = deployIaStack ? documentIntelligence!.outputs.name : ''
 output AZURE_DOCUMENTINTELLIGENCE_RESOURCE_GROUP string = documentIntelligenceResourceGroup.name
 
 output AZURE_SEARCH_INDEX string = searchIndexName
 output AZURE_SEARCH_KNOWLEDGEBASE_NAME string = knowledgeBaseName
-output AZURE_SEARCH_SERVICE string = searchService.outputs.name
+output AZURE_SEARCH_SERVICE string = deployIaStack ? searchService!.outputs.name : ''
 output AZURE_SEARCH_SERVICE_RESOURCE_GROUP string = searchServiceResourceGroup.name
 output AZURE_SEARCH_SEMANTIC_RANKER string = actualSearchServiceSemanticRankerLevel
 output AZURE_SEARCH_FIELD_NAME_EMBEDDING string = searchFieldNameEmbedding
-output AZURE_SEARCH_USER_ASSIGNED_IDENTITY_RESOURCE_ID string = searchService.outputs.userAssignedIdentityResourceId
+output AZURE_SEARCH_USER_ASSIGNED_IDENTITY_RESOURCE_ID string = deployIaStack ? searchService!.outputs.userAssignedIdentityResourceId : ''
 
 output AZURE_COSMOSDB_ACCOUNT string = (useAuthentication && useChatHistoryCosmos) ? cosmosDb!.outputs.name : ''
 output AZURE_CHAT_HISTORY_DATABASE string = chatHistoryDatabaseName
