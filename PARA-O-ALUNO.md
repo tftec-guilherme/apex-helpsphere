@@ -165,7 +165,12 @@ azd env set USE_MULTIMODAL "false"
 azd env set SKIP_ROLE_ASSIGNMENTS "false"
 
 # Flags do template
-azd env set USE_AUTHENTICATION "true"
+# IMPORTANTE: a flag de auth precisa do prefix AZURE_ (AZURE_USE_AUTHENTICATION).
+# Setar SÓ "USE_AUTHENTICATION" (sem prefix) faz o hook auth_init.ps1 silenciar com
+# "AZURE_USE_AUTHENTICATION is not set, skipping authentication setup." e nenhuma
+# App Registration é criada. Descoberto ao vivo durante recording 2026-05-07
+# (Surpresa #44).
+azd env set AZURE_USE_AUTHENTICATION "true"
 azd env set USE_SQL_SERVER "true"
 azd env set AZURE_LOAD_SEED_DATA "true"
 azd env set DEPLOYMENT_TARGET "containerapps"
@@ -186,12 +191,19 @@ $groupId = az ad group create --display-name "helpsphere-sql-admins" --mail-nick
 $myId = az ad signed-in-user show --query id -o tsv
 az ad group member add --group $groupId --member-id $myId
 
-# Seta o env var pro Bicep ler na hora do azd up
+# Seta os 2 env vars pro Bicep ler na hora do azd up
+# IMPORTANTE: Bicep precisa do ID *e* do NOME do group. Sem o NAME,
+# SQL Server falha com 'Invalid value given for parameter ExternalAdminProperties'
+# (descoberto ao vivo durante o recording, minutos 30-37 — Surpresa #41).
 azd env set AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID $groupId
+azd env set AZURE_SQL_AAD_ADMIN_GROUP_NAME helpsphere-sql-admins
 
-# Confirma (deve imprimir o GUID do group)
+# Confirma (deve imprimir o GUID e o nome)
 azd env get-value AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID
+azd env get-value AZURE_SQL_AAD_ADMIN_GROUP_NAME
 ```
+
+> **Por que 2 env vars (ID + NOME)?** Bicep monta o `administrators` block do SQL Server com `login: <NAME>` + `sid: <OBJECT_ID>` — ARM exige os 2. Setar só o OBJECT_ID faz o `login` ficar vazio e ARM rejeita o create do servidor.
 
 > **Por que group e não user direto?** Boa prática Azure: AAD admins de SQL Server são **groups** (não users individuais) — facilita rotação de equipe sem refatorar o servidor. Você é membro do group, então tem o mesmo poder.
 
@@ -210,6 +222,52 @@ azd up
 3. **Deploy** — push das imagens pro ACR + atualiza Container Apps + roda migrations + seed (50 tickets pt-BR distribuídos em 5 tenants Apex)
 
 URL pública aparece no log final do `azd up` (campo `(✓) Done: Deploying service backend`).
+
+#### Falhou? Troubleshooting comum pós-`azd up`
+
+As 3 falhas mais frequentes na **primeira execução** num laptop novo. Todas têm fix reativo determinístico.
+
+**`sql_init.py` falha com `Cannot open server. Client with IP address 'X.X.X.X' is not allowed` (Surpresa #42)**
+
+O hook `postprovision sql_init.py` roda **localmente no seu laptop** (não no Azure) para criar o schema + carregar seed. O Bicep adiciona o IP outbound do Container App no firewall do SQL (Surpresa #17), mas **o IP do seu laptop não está lá**. Adicione manualmente e re-rode só o hook:
+
+```powershell
+$myIp = (Invoke-RestMethod -Uri https://api.ipify.org)
+$sqlServer = (azd env get-value AZURE_SQL_SERVER_NAME)
+az sql server firewall-rule create `
+    --resource-group rg-helpsphere-saas `
+    --server $sqlServer `
+    --name "AllowMyLaptop" `
+    --start-ip-address $myIp `
+    --end-ip-address $myIp
+Start-Sleep -Seconds 60   # propagação da regra
+azd hooks run postprovision
+```
+
+Funciona porque `azd hooks run` re-executa só os hooks; provision já está pronto.
+
+**`sql_init.py` carrega tickets mas comments falha com `FK constraint fk_comments_ticket` (Surpresa #43)**
+
+Quirk do SQL Server: numa tabela que **nunca teve rows**, `DBCC CHECKIDENT (..., RESEED, 0)` faz o **primeiro INSERT começar em 0** (não em 1). O `data/seed/tickets.sql` faz exatamente isso — tickets ficam com IDs `0..49`, mas `comments.sql` referencia `ticket_id` até 50, violando a FK. Workaround: aqueça o IDENTITY antes de carregar o seed via warm-up dummy (insert + delete) e re-rode o hook.
+
+```powershell
+# 1) Warm-up: insert dummy + delete pra fixar próximo IDENTITY = 1
+$sqlServer = (azd env get-value AZURE_SQL_SERVER_NAME)
+$sqlDb = (azd env get-value AZURE_SQL_DATABASE_NAME)
+sqlcmd -S "$sqlServer.database.windows.net" -d $sqlDb -G -Q @"
+INSERT INTO tbl_tickets (tenant_id, title, status) VALUES (1, '__WARMUP__', 'closed');
+DELETE FROM tbl_tickets WHERE title = '__WARMUP__';
+"@
+
+# 2) Re-rode o postprovision (que vai re-tentar o seed do zero)
+azd hooks run postprovision
+```
+
+Em produção, o fix permanente entra na próxima release do template (`tickets.sql` faz warm-up automático). Backlog em Story 06.9.
+
+**Backend Python crashloop com `UnicodeEncodeError: idna codec` (Surpresa #45 — já corrigido)**
+
+Esse erro **não acontece mais** desde 2026-05-07 — o template tem fix permanente. Caso você tenha forkado **antes** dessa data e veja `app.py` crash em `SearchClient(endpoint=...)` ou `setup_openai_client(...)` mesmo com `DEPLOY_IA_STACK=false`, atualize seu fork: `git fetch upstream && git merge upstream/main`. Os 2 inits de AI clients (linhas ~530 e ~605 de `app/backend/app.py`) agora têm gate `if AZURE_SEARCH_SERVICE` / `if AZURE_OPENAI_SERVICE or ...` que só liga quando IA stack está habilitada.
 
 ### 7. Abrir no navegador
 
