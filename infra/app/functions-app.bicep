@@ -149,8 +149,13 @@ resource auth 'Microsoft.Web/sites/config@2022-03-01' = {
         }
         validation: {
           jwtClaimChecks: {}
+          // Easy Auth must accept BOTH audience formats:
+          //   - authIdentifierUri (e.g. 'api://${authClientId}' — Microsoft Identity Platform v1)
+          //   - authClientId      (Microsoft Identity Platform v2 emits bare GUID as `aud` claim)
+          // See Surpresa pedagogica #46 (Story 06.10 AC3) — defensive symmetry with container-apps-auth.bicep.
           allowedAudiences: [
             authIdentifierUri
+            authClientId
           ]
           defaultAuthorizationPolicy: {
             allowedPrincipals: {}

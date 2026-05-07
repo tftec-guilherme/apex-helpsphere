@@ -19,7 +19,12 @@ param appIdentityResourceId string = ''
 // .default must be the 1st scope for On-Behalf-Of-Flow combined consent to work properly
 // Please see https://learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow#default-and-combined-consent
 var requiredScopes = [ 'api://${serverAppId}/.default', 'openid', 'profile', 'email', 'offline_access' ]
-var requiredAudiences = [ 'api://${serverAppId}' ]
+// Easy Auth must accept BOTH audience formats:
+//   - 'api://${serverAppId}' (Microsoft Identity Platform v1 / App ID URI)
+//   - serverAppId             (Microsoft Identity Platform v2 emits bare GUID as `aud` claim)
+// See Surpresa pedagogica #46 (Story 06.10 AC3) — runtime fix that the recording applied
+// via `az containerapp auth microsoft update --allowed-audiences` is now permanent here.
+var requiredAudiences = [ 'api://${serverAppId}', serverAppId ]
 
 resource app 'Microsoft.App/containerApps@2023-05-01' existing = {
   name: name
