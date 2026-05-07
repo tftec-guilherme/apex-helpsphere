@@ -339,7 +339,7 @@ A partir daqui, **cada lab é Portal-first manual** seguindo guias passo-a-passo
 ## 📚 Quer ir mais fundo?
 
 - **[`DECISION-LOG.md`](./DECISION-LOG.md)** — 23 decisões arquiteturais com defesa para audiência sênior
-- **[`APPENDIX-SURPRESAS.md`](./APPENDIX-SURPRESAS.md)** — 35 surpresas pedagógicas que o template MS não documenta (gotchas + lições)
+- **[`APPENDIX-SURPRESAS.md`](./APPENDIX-SURPRESAS.md)** — 47 surpresas pedagógicas que o template MS não documenta (gotchas + lições)
 - **Estado canônico:** tag git [`helpsphere-v2.1.0`](https://github.com/tftec-guilherme/apex-helpsphere/releases/tag/helpsphere-v2.1.0)
 
 ---
