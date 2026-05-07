@@ -31,6 +31,9 @@ param containerRegistryName string = ''
 @description('Hostname suffix for container registry. Set when deploying to sovereign clouds')
 param containerRegistryHostSuffix string = 'azurecr.io'
 
+@description('Skip ACR pull role assignment (use when SP has no roleAssignments/write perm — ABAC). Aluno cria local depois.')
+param skipRoleAssignments bool = false
+
 @description('The protocol used by Dapr to connect to the app, e.g., http or grpc')
 @allowed([ 'http', 'grpc' ])
 param daprAppProtocol string = 'http'
@@ -100,7 +103,7 @@ var keyvaultIdentitySecrets = [for secret in items(keyvaultIdentities): {
   identity: secret.value.identity
 }]
 
-module containerRegistryAccess '../security/registry-access.bicep' = if (usePrivateRegistry) {
+module containerRegistryAccess '../security/registry-access.bicep' = if (usePrivateRegistry && !skipRoleAssignments) {
   name: '${deployment().name}-registry-access'
   params: {
     containerRegistryName: containerRegistryName

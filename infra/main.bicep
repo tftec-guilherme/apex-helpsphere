@@ -717,6 +717,7 @@ module acaBackend 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
     exists: webAppExists
     containerRegistryName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.registryName : ''
     containerAppsEnvironmentName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.environmentName : ''
+    skipRoleAssignments: skipRoleAssignments
     tags: union(tags, { 'azd-service-name': 'backend' })
     targetPort: 8000
     containerCpuCoreCount: '1.0'
@@ -818,6 +819,7 @@ module acaTickets 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
     exists: ticketsAppExists
     containerRegistryName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.registryName : ''
     containerAppsEnvironmentName: (deploymentTarget == 'containerapps') ? containerApps!.outputs.environmentName : ''
+    skipRoleAssignments: skipRoleAssignments
     tags: union(tags, { 'azd-service-name': 'tickets-service' })
     targetPort: 8080
     containerCpuCoreCount: '0.5'
