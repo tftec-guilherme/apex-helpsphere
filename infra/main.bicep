@@ -208,7 +208,7 @@ param chatHistoryVersion string = 'cosmosdb-v2'
     type: 'location'
   }
 })
-param openAiLocation string
+param openAiLocation string = 'eastus'
 
 param openAiSkuName string = 'S0'
 
@@ -228,7 +228,7 @@ param documentIntelligenceResourceGroupName string = '' // Set in main.parameter
     type: 'location'
   }
 })
-param documentIntelligenceResourceGroupLocation string
+param documentIntelligenceResourceGroupLocation string = 'eastus'
 
 param documentIntelligenceSkuName string // Set in main.parameters.json
 

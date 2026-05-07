@@ -27,7 +27,7 @@
       "value": "${AZURE_OPENAI_RESOURCE_GROUP}"
     },
     "openAiLocation": {
-      "value": "${AZURE_OPENAI_LOCATION}"
+      "value": "${AZURE_OPENAI_LOCATION=eastus}"
     },
     "openAiSkuName": {
       "value": "S0"
@@ -57,7 +57,7 @@
       "value": "${AZURE_DOCUMENTINTELLIGENCE_SKU=S0}"
     },
     "documentIntelligenceResourceGroupLocation": {
-      "value": "${AZURE_DOCUMENTINTELLIGENCE_LOCATION}"
+      "value": "${AZURE_DOCUMENTINTELLIGENCE_LOCATION=eastus}"
     },
     "searchIndexName": {
       "value": "${AZURE_SEARCH_INDEX=gptkbindex}"

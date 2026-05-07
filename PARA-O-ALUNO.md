@@ -89,7 +89,7 @@ R$ 8-15 por sessão de 4-6h **se** você rodar `azd down --purge` no fim. Esquec
 
 ---
 
-## 🚀 Quick Start (6 passos · ~15 minutos)
+## 🚀 Quick Start (7 passos · ~17 minutos)
 
 ### 1. Fork + clone no VSCode
 
@@ -155,7 +155,9 @@ az account show --query "{name:name, id:id}" -o table
 ### 4. Criar environment azd + flags do Bicep
 
 ```powershell
-azd env new helpsphere-saas-{seu-id}
+# {prefixo-curto} = 3-6 chars (ex: prox, gpc). Total deve ficar <= 18 chars
+# stripped (Storage Account name limit no Azure = 24 chars, com prefix 'st' + token 4 chars)
+azd env new helpsphere-{prefixo-curto}
 
 # Flags pra deploy SaaS-only (sem IA — IA fica nos labs Inter/Final/Avancado)
 azd env set DEPLOY_IA_STACK "false"
@@ -172,7 +174,30 @@ azd env set AZURE_LOCATION "westus3"
 
 > **Por que essas flags?** `DEPLOY_IA_STACK=false` desliga OpenAI / AI Search / Doc Intelligence / Vision / Speech / Cosmos. `USE_MULTIMODAL=false` reforça (vars do template upstream). `SKIP_ROLE_ASSIGNMENTS=false` mantém os MI grants automáticos (sua conta Owner consegue criar — non-Owner roles são permitidas). Resultado: **só SaaS** deploya.
 
-### 5. `azd up`
+### 5. Criar AAD group SQL admin
+
+Azure SQL Server moderno usa **AAD admin** ao invés de SQL auth (login/password legado). O Bicep do template tem gate `useSqlServer && !empty(sqlAadAdminGroupObjectId)` — sem o group AAD criado, SQL Server **não deploya** e o tickets-service .NET retorna 500 em runtime. Você cria o group **uma vez**:
+
+```powershell
+# Cria o group AAD que vai ser o SQL admin do servidor
+$groupId = az ad group create --display-name "helpsphere-sql-admins" --mail-nickname "helpsphere-sql-admins" --query id -o tsv
+
+# Adiciona voce mesmo no group (assim voce tem permissao admin no SQL via Entra)
+$myId = az ad signed-in-user show --query id -o tsv
+az ad group member add --group $groupId --member-id $myId
+
+# Seta o env var pro Bicep ler na hora do azd up
+azd env set AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID $groupId
+
+# Confirma (deve imprimir o GUID do group)
+azd env get-value AZURE_SQL_AAD_ADMIN_GROUP_OBJECT_ID
+```
+
+> **Por que group e não user direto?** Boa prática Azure: AAD admins de SQL Server são **groups** (não users individuais) — facilita rotação de equipe sem refatorar o servidor. Você é membro do group, então tem o mesmo poder.
+
+> **ABAC alert (Surpresa #31):** se sua subscription é Visual Studio Enterprise em conta `live.com`, `az ad group create` deve passar (cria objeto Entra, não envolve role assignment), mas teste primeiro. Se quebrar, você pode criar o group via Portal Azure → Microsoft Entra ID → Groups → New group.
+
+### 6. `azd up`
 
 ```powershell
 azd up
@@ -186,7 +211,7 @@ azd up
 
 URL pública aparece no log final do `azd up` (campo `(✓) Done: Deploying service backend`).
 
-### 6. Abrir no navegador
+### 7. Abrir no navegador
 
 Acesse a URL impressa pelo `azd up`:
 
