@@ -1,6 +1,6 @@
-# APPENDIX — 29 Surpresas pedagógicas (v2.1.0)
+# APPENDIX — 37 Surpresas pedagógicas
 
-> Lições aprendidas que **o template Microsoft `azure-search-openai-demo` não documenta**. Todas as 29 estão **automatizadas no template v2.1.0** — você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico desta evolução: ~16h de debugging E2E real (Sessões 9.4-9.5) + cleanup final (Sessão 9.6).
+> Lições aprendidas que **o template Microsoft `azure-search-openai-demo` não documenta**. Todas estão **mitigadas no template SaaS-only** — você vai encontrar **MUITO MENOS** problemas que o professor encontrou. Custo pedagógico cumulativo: ~16h de debugging E2E real (Sessões 9.4-9.5) + cleanup final (Sessão 9.6) + maratona pivot SaaS local 12+h (Sessão 2026-05-06) + first-laptop multi-Python (Sessão 2026-05-07).
 >
 > Defesa arquitetural completa de cada item em [`DECISION-LOG.md`](./DECISION-LOG.md).
 
@@ -77,6 +77,17 @@ Estas surpresas só aparecem quando você é o **primeiro a rodar o bootstrap** 
 
 ---
 
+## Surpresas first-laptop com Python multi-versão (Sessão 2026-05-07)
+
+Estas surpresas aparecem quando você roda o preflight pela **primeira vez** num laptop que **já tinha Python instalado** antes (ex: 3.14 default no PATH) e/ou nunca habilitou Long Path no Windows. Documentadas durante o smoke do pivot SaaS local — todas têm fix automático no preflight ou comando admin exato.
+
+| # | Surpresa | Lição |
+|---|----------|-------|
+| **#36** | Long Path Windows (`HKLM:\...\FileSystem\LongPathsEnabled`) não vem habilitado por default em Windows 11 Enterprise. Preflight Check 2 falha com `LongPathsEnabled=0` | Path > 260 chars quebra Docker build em containers Linux que clonam node_modules profundos. **Fix manual (uma vez):** PowerShell elevado → `Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1`. Vale para processos novos imediatamente — não precisa reboot. **Documentação:** PARA-O-ALUNO §2 troubleshooting tem o comando copy-paste. |
+| **#37** | `python --version` resolve para versão antiga do PATH (ex: `C:\Python314\python.exe`) mesmo quando 3.13 está instalado em `%LOCALAPPDATA%\Programs\Python\Python313\`. Preflight original Check 7 falhava porque só consultava `python` direto, ignorando o `py` launcher | System PATH sempre vence User PATH; instalações user-scope do winget ficam atrás. **Fix permanente (preflight v2):** Check 7 aceita `python --version=3.13.x` **OU** `py -3.13 --version` funcional. Aluno com Python 3.14+ default no PATH passa sem precisar mexer em PATH ou desinstalar. **Custo:** ~10 linhas no preflight, valor: zero PATH disruption no laptop do aluno. |
+
+---
+
 ## Política de revisão
 
 Quando uma nova surpresa for descoberta em produção:
@@ -86,6 +97,6 @@ Quando uma nova surpresa for descoberta em produção:
 3. Bumpar contador no [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md) e [`README.md`](./README.md)
 4. Tag de release nova (semver)
 
-> **Total atual:** 35 surpresas → 35 fixes permanentes no template (29 do v2.1.0 + 6 da Sessão 9.7 first-bootstrap em conta pessoal).
+> **Total atual:** 37 surpresas → 37 fixes permanentes no template (29 do v2.1.0 + 6 da Sessão 9.7 first-bootstrap conta pessoal + 2 da Sessão 2026-05-07 first-laptop multi-Python).
 >
-> **Auto-fix em preflight (workflow `5. Deploy`):** 1 das 6 novas (#32 App Reg sem SP) é detectada e corrigida automaticamente pelo Check 6. Outras 5 (#30 PS vs Bash, #31 ABAC, #33 azd cache, #34 SP sem role, #35 AAD group ausente) precisam de ação manual com comando exato fornecido pelo preflight.
+> **Auto-fix em preflight:** 2 das 8 novas pós-v2.1.0 são detectadas e corrigidas/aceitas automaticamente — #32 (App Reg sem SP, Check 6) e #37 (Python via py launcher, Check 7 v2). As outras 6 (#30 PS vs Bash, #31 ABAC, #33 azd cache, #34 SP sem role, #35 AAD group ausente, #36 Long Path) precisam de ação manual com comando exato fornecido pelo preflight ou na seção §2 do PARA-O-ALUNO.

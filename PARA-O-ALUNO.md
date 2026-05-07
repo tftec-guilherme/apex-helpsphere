@@ -17,8 +17,9 @@ Este repo é o HelpSphere base SaaS. Você clona, deploya local, e o turbina nos
 ## ✅ Pré-requisitos
 
 ### Conta Azure
-- **Pay-As-You-Go** ou **Visual Studio Enterprise** com role **Owner** na subscription
-- Subscription com Free Trial $200 USD **NÃO funciona** (mesmo que o template não use IA aqui)
+- **Pay-As-You-Go**, **Visual Studio Enterprise** ou **Free Trial $200 USD** com role **Owner** na subscription
+- Free Trial **funciona para esta versão SaaS-only** (~$3-5/dia em westus3 = ~50 dias com $200 credit) porque IA stack está desligada (`DEPLOY_IA_STACK=false`). Se você for fazer os 3 labs (Inter/Final/Avançado) que provisionam Azure OpenAI, **converta para PAYG antes** — Free Trial bloqueia em quota de OpenAI.
+- ⚠️ Se sua conta é `live.com` Visual Studio Enterprise, ela pode ter ABAC condition que bloqueia atribuição de Owner/UAA/RBAC Admin (Surpresa #31). Para SaaS-only via `azd up` direto isso não bloqueia, mas se você quiser CI/CD fork-by-student, vai precisar de TFTEC sub ou contornar.
 
 ### Conta GitHub
 - Apenas para fork do repo (sem CI/CD nesta versão SaaS-only)
@@ -110,6 +111,33 @@ pwsh ./scripts/preflight.ps1
 ```
 
 Valida ambiente local (PowerShell 7+, Long Path Win, Docker, ODBC Driver 18, Python 3.13.x, etc.). Sai com erro acionável se algo faltar.
+
+#### Falhou? Troubleshooting dos 2 mais comuns
+
+**`[2/8] Long Path habilitado (Windows)... FALHA`**
+
+Long Path é registry e exige **PowerShell elevado**. Abra **Terminal (Admin)** (Win+X → "Terminal (Admin)") e cole:
+
+```powershell
+Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1
+```
+
+Vale imediatamente para processos **novos** — feche o terminal onde rodou o preflight e reabra. Não precisa reboot.
+
+**`[7/8] Python 3.13.x... FALHA (Python 3.14.x)`** (ou versão diferente)
+
+Se você já tinha outra versão de Python instalada (ex: 3.14 default no PATH) **e** acabou de instalar 3.13 via winget, o `python` no PATH ainda resolve para a versão antiga. O preflight aceita 2 caminhos:
+- `python --version` retornar `3.13.x` (Python 3.13 é o default no PATH), **OU**
+- `py -3.13 --version` funcionar (Python launcher detecta 3.13 instalado em qualquer caminho)
+
+Verifique se o launcher acha sua 3.13:
+
+```powershell
+py -0          # lista todas Python instaladas
+py -3.13 --version   # deve mostrar 3.13.x
+```
+
+Se `py -3.13` funciona, o preflight passa automaticamente — sem mexer em PATH ou desinstalar nada. Se não funciona, reinstale: `winget install --id Python.Python.3.13 -e`.
 
 ### 3. Login Azure
 

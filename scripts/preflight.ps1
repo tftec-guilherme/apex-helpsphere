@@ -141,25 +141,42 @@ try {
     $failed = $true
 }
 
-# --- 7. Python 3.13.x ---
+# --- 7. Python 3.13.x (aceita 'python' direto OU via 'py -3.13' launcher) ---
 Write-Host "[7/8] Python 3.13.x..." -NoNewline
+$pythonOk = $false
+$pythonDetected = ''
+
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {
-    Write-Host " FALHA (python nao encontrado no PATH)" -ForegroundColor Red
-    Write-Host "  Instale: winget install --id Python.Python.3.13 -e" -ForegroundColor Yellow
-    $failed = $true
-} else {
+if ($pythonCmd) {
     $pythonVersion = & python --version 2>&1
     if ($LASTEXITCODE -eq 0 -and $pythonVersion -match '^Python 3\.13\.') {
-        Write-Host " OK ($pythonVersion)" -ForegroundColor Green
-    } else {
-        Write-Host " FALHA ($pythonVersion)" -ForegroundColor Red
-        Write-Host "  Instale Python 3.13 via pyenv-win, Microsoft Store ou python.org:" -ForegroundColor Yellow
-        Write-Host "    winget install --id Python.Python.3.13 -e" -ForegroundColor Yellow
-        Write-Host "  Ou (recomendado para multi-versao): pyenv-win" -ForegroundColor Yellow
-        Write-Host "    https://github.com/pyenv-win/pyenv-win" -ForegroundColor Yellow
-        $failed = $true
+        $pythonOk = $true
+        $pythonDetected = "$pythonVersion (via 'python' no PATH)"
     }
+}
+
+if (-not $pythonOk) {
+    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCmd) {
+        $pyVersion = & py -3.13 --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $pyVersion -match '^Python 3\.13\.') {
+            $pythonOk = $true
+            $pythonDetected = "$pyVersion (via 'py -3.13' launcher)"
+        }
+    }
+}
+
+if ($pythonOk) {
+    Write-Host " OK ($pythonDetected)" -ForegroundColor Green
+} else {
+    $current = if ($pythonCmd) { & python --version 2>&1 } else { '(python nao encontrado)' }
+    Write-Host " FALHA ($current)" -ForegroundColor Red
+    Write-Host "  Instale Python 3.13 via winget, pyenv-win, Microsoft Store ou python.org:" -ForegroundColor Yellow
+    Write-Host "    winget install --id Python.Python.3.13 -e" -ForegroundColor Yellow
+    Write-Host "  Aceita: 'python --version' = 3.13.x  OU  'py -3.13 --version' funcional" -ForegroundColor Yellow
+    Write-Host "  Para multi-versao recomendado: pyenv-win" -ForegroundColor Yellow
+    Write-Host "    https://github.com/pyenv-win/pyenv-win" -ForegroundColor Yellow
+    $failed = $true
 }
 
 # --- 8. Subscription ativa (informativo) ---
