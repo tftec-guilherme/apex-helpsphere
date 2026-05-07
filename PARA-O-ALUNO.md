@@ -18,7 +18,7 @@ Este repo é o HelpSphere base SaaS. Você clona, deploya local, e o turbina nos
 
 ### Conta Azure
 - **Pay-As-You-Go** ou **Visual Studio Enterprise** com role **Owner** na subscription
-- Subscription com Free Trial $200 USD **NÃO funciona** (mesmo que o template não use IA aqui, recursos como Container Apps + SQL exigem PAYG)
+- Subscription com Free Trial $200 USD **NÃO funciona** (mesmo que o template não use IA aqui)
 
 ### Conta GitHub
 - Apenas para fork do repo (sem CI/CD nesta versão SaaS-only)
