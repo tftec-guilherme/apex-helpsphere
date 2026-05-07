@@ -4,11 +4,12 @@ import { ChatAppResponse, ChatAppResponseOrError, ChatAppRequest, Config, Simple
 import { useLogin, getToken, isUsingAppServicesLogin } from "../authConfig";
 
 export async function getHeaders(idToken: string | undefined): Promise<Record<string, string>> {
-    // If using login and not using app services, add the id token of the logged in account as the authorization
-    if (useLogin && !isUsingAppServicesLogin) {
-        if (idToken) {
-            return { Authorization: `Bearer ${idToken}` };
-        }
+    // HelpSphere SaaS-only (Surpresa #47): premissa upstream "Easy Auth = no Bearer" quebra
+    // cross-origin entre backend Python e tickets-service .NET (host diferente). Cookie da
+    // Easy Auth não viaja cross-origin, e sem Authorization header tickets-service retorna 401.
+    // Fix: SEMPRE enviar Bearer quando idToken disponível (getToken faz fallback Easy-Auth-via-/.auth/me).
+    if (useLogin && idToken) {
+        return { Authorization: `Bearer ${idToken}` };
     }
 
     return {};

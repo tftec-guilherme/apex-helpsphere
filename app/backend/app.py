@@ -527,15 +527,22 @@ async def setup_clients():
     current_app.config[CONFIG_CREDENTIAL] = azure_credential
 
     # Set up clients for AI Search and Storage
-    search_client = SearchClient(
-        endpoint=AZURE_SEARCH_ENDPOINT,
-        index_name=AZURE_SEARCH_INDEX,
-        credential=azure_credential,
-    )
-
-    knowledgebase_client = KnowledgeBaseRetrievalClient(
-        endpoint=AZURE_SEARCH_ENDPOINT, knowledge_base_name=AZURE_SEARCH_KNOWLEDGEBASE_NAME, credential=azure_credential
-    )
+    # HelpSphere SaaS-only (Surpresa #45): gate AI Search clients quando IA stack
+    # off (DEPLOY_IA_STACK=false default). AZURE_SEARCH_SERVICE vazio → endpoint
+    # composto fica "https://.search.windows.net" → DNS resolve dispara IDNA fail
+    # em startup. Fix: skip init quando service vazio. Métodos /chat ficam
+    # indisponíveis (chat dormente per Decisão #19), mas auth + tickets funcionam.
+    search_client = None
+    knowledgebase_client = None
+    if AZURE_SEARCH_SERVICE:
+        search_client = SearchClient(
+            endpoint=AZURE_SEARCH_ENDPOINT,
+            index_name=AZURE_SEARCH_INDEX,
+            credential=azure_credential,
+        )
+        knowledgebase_client = KnowledgeBaseRetrievalClient(
+            endpoint=AZURE_SEARCH_ENDPOINT, knowledge_base_name=AZURE_SEARCH_KNOWLEDGEBASE_NAME, credential=azure_credential
+        )
     knowledgebase_client_with_web = None
     knowledgebase_client_with_sharepoint = None
     knowledgebase_client_with_web_and_sharepoint = None
@@ -571,7 +578,7 @@ async def setup_clients():
 
     # Set up authentication helper
     search_index = None
-    if AZURE_USE_AUTHENTICATION:
+    if AZURE_USE_AUTHENTICATION and AZURE_SEARCH_SERVICE:
         current_app.logger.info("AZURE_USE_AUTHENTICATION is true, setting up search index client")
         search_index_client = SearchIndexClient(
             endpoint=AZURE_SEARCH_ENDPOINT,
@@ -602,15 +609,21 @@ async def setup_clients():
         # Wait until token is needed to fetch for the first time
         current_app.config[CONFIG_SPEECH_SERVICE_TOKEN] = None
 
-    openai_client, azure_openai_endpoint = setup_openai_client(
-        openai_host=OPENAI_HOST,
-        azure_credential=azure_credential,
-        azure_openai_service=AZURE_OPENAI_SERVICE,
-        azure_openai_custom_url=AZURE_OPENAI_CUSTOM_URL,
-        azure_openai_api_key=AZURE_OPENAI_API_KEY_OVERRIDE,
-        openai_api_key=OPENAI_API_KEY,
-        openai_organization=OPENAI_ORGANIZATION,
-    )
+    # HelpSphere SaaS-only (Surpresa #45): gate setup_openai_client quando IA stack
+    # off. setup_openai_client raise ValueError se OPENAI_HOST=azure + AZURE_OPENAI_SERVICE
+    # vazio. Fix: skip init quando nenhum endpoint OpenAI configurado.
+    openai_client = None
+    azure_openai_endpoint = None
+    if AZURE_OPENAI_SERVICE or AZURE_OPENAI_CUSTOM_URL or OPENAI_API_KEY:
+        openai_client, azure_openai_endpoint = setup_openai_client(
+            openai_host=OPENAI_HOST,
+            azure_credential=azure_credential,
+            azure_openai_service=AZURE_OPENAI_SERVICE,
+            azure_openai_custom_url=AZURE_OPENAI_CUSTOM_URL,
+            azure_openai_api_key=AZURE_OPENAI_API_KEY_OVERRIDE,
+            openai_api_key=OPENAI_API_KEY,
+            openai_organization=OPENAI_ORGANIZATION,
+        )
 
     user_blob_manager = None
     if USE_USER_UPLOAD:

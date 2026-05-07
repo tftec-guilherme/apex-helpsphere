@@ -25,6 +25,16 @@ SET NOCOUNT ON;
 GO
 
 -- Limpa antes de re-seed (idempotente)
+-- Patched (Surpresa #43): RESEED 0 numa tabela que NUNCA teve rows faz o
+-- proximo INSERT comecar em 0 (nao 1). Comments.sql espera ticket_id 1..50,
+-- e sem warm-up pega 0..49 -> FK violation.
+-- Workaround: warm-up insert+delete pra marcar "tabela ja teve rows", entao
+-- RESEED 0 final faz o proximo INSERT comecar em 1 corretamente.
+DELETE FROM dbo.tbl_tickets;
+SET IDENTITY_INSERT dbo.tbl_tickets ON;
+INSERT INTO dbo.tbl_tickets (ticket_id, tenant_id, subject, description, category, status, priority, created_at)
+VALUES (1, (SELECT TOP 1 tenant_id FROM dbo.tbl_tenants), N'__warmup__', N'__warmup__', 'TI', 'Open', 'Low', SYSUTCDATETIME());
+SET IDENTITY_INSERT dbo.tbl_tickets OFF;
 DELETE FROM dbo.tbl_tickets;
 DBCC CHECKIDENT ('dbo.tbl_tickets', RESEED, 0);
 GO
