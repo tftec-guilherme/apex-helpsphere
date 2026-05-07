@@ -6,7 +6,7 @@
 
 Pós-Graduação Avançada de Cloud com Azure · Disciplina 06.
 
-[![Deploy](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev.yml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev.yml)
+[![Bicep validation](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev-validation.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev-validation.yaml)
 [![.NET](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml)
 [![Frontend](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/frontend.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/frontend.yaml)
 [![Python](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/python-test.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/python-test.yaml)
@@ -23,30 +23,38 @@ Plataforma operacional de tickets do **Apex Group** (holding fictícia de varejo
 
 > **Pedagógico, não brinquedo.** Auth two-app Microsoft Entra ID, Managed Identity, RLS-like multi-tenancy, Bicep IaC, observabilidade OpenTelemetry, container deploy. Decisões de arquitetura defendíveis em audiência sênior — documentadas no [`DECISION-LOG.md`](./DECISION-LOG.md) (23 decisões cravadas).
 
-## Quick start (aluno)
+## Quick start (aluno) — local via VSCode
 
-```bash
-# 1. Fork em https://github.com/tftec-guilherme/apex-helpsphere
+```powershell
+# 1. Fork em https://github.com/tftec-guilherme/apex-helpsphere → seu fork
+# 2. Clone no VSCode (Ctrl+Shift+P → Git: Clone)
 git clone https://github.com/SEU_USUARIO/apex-helpsphere.git
 cd apex-helpsphere
 
-# 2. Pre-flight check (~30s, 8 validações)
+# 3. Pre-flight (~30s, 8 validações)
 pwsh ./scripts/preflight.ps1   # Windows
 ./scripts/preflight.sh          # macOS/Linux/WSL
 
-# 3. azd auth + env
+# 4. Login Azure
+az login
 azd auth login
-azd env new helpsphere-demo
 
-# 4a. Push pra CI deployar (recomendado v2.1.0)
-azd pipeline config              # cria federated SP + GitHub secrets/vars
-git push origin main             # CI faz tudo
+# 5. Environment azd + flags SaaS-only
+azd env new helpsphere-saas-{seu-id}
+azd env set DEPLOY_IA_STACK "false"          # IA fica para os labs
+azd env set USE_MULTIMODAL "false"
+azd env set SKIP_ROLE_ASSIGNMENTS "false"    # sua conta Owner cria roles
+azd env set USE_AUTHENTICATION "true"
+azd env set USE_SQL_SERVER "true"
+azd env set AZURE_LOAD_SEED_DATA "true"
+azd env set DEPLOYMENT_TARGET "containerapps"
+azd env set AZURE_LOCATION "westus3"
 
-# 4b. OU rodar local
+# 6. Deploy completo
 azd up                           # ~9-14min
 ```
 
-📘 **Detalhes completos + 29 surpresas pedagógicas catalogadas:** [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md)
+📘 **Detalhes completos + 35 surpresas pedagógicas catalogadas:** [`PARA-O-ALUNO.md`](./PARA-O-ALUNO.md)
 
 ## Arquitetura
 
@@ -65,8 +73,9 @@ azd up                           # ~9-14min
 
 **Princípios não-negociáveis (v2.1.0):**
 
-- **CI-first:** todo ciclo via GitHub Actions. `azd up` local é dev avançado, opcional.
-- **Parametrização:** Bicep params + `azd env` + GitHub vars (zero hardcode entre tenants).
+- **Local-first via VSCode:** `azd up` com sua conta Azure é o caminho do aluno. CI/CD descontinuado em conta pessoal por ABAC condition (ver `APPENDIX-SURPRESAS.md` #31).
+- **Parametrização:** Bicep params + `azd env` (DEPLOY_IA_STACK, SKIP_ROLE_ASSIGNMENTS) — zero hardcode entre subscriptions.
+- **SaaS-only base:** IA stack (OpenAI/AI Search/DocIntel/Vision/Speech/Cosmos) NÃO é provisionada aqui — fica para os 3 labs (Inter/Final/Avançado), passo-a-passo Portal Azure.
 - **Production-grade pedagogicamente defendível:** sem atalhos de segurança "para o aluno entender mais rápido".
 
 ## Stack

@@ -16,11 +16,76 @@ Este repo é o HelpSphere base SaaS. Você clona, deploya local, e o turbina nos
 
 ## ✅ Pré-requisitos
 
-- Conta Azure **Pay-As-You-Go** ou **Visual Studio Enterprise** com role **Owner** na subscription
-- **Azure CLI 2.x**, **Azure Developer CLI (`azd`)**, **Git**, **VSCode**, **Docker Desktop** instalados
-- Conta GitHub (apenas para fork)
+### Conta Azure
+- **Pay-As-You-Go** ou **Visual Studio Enterprise** com role **Owner** na subscription
+- Subscription com Free Trial $200 USD **NÃO funciona** (mesmo que o template não use IA aqui, recursos como Container Apps + SQL exigem PAYG)
 
-**Custo esperado:** R$ 8-15 por sessão de 4-6h se você rodar `azd down --purge` no fim. Esquecer ligado 1 mês = R$ 80-120.
+### Conta GitHub
+- Apenas para fork do repo (sem CI/CD nesta versão SaaS-only)
+
+### Software local (instalação one-shot)
+
+**Windows (PowerShell 7+):**
+
+```powershell
+# Instala TUDO em um único comando (winget)
+winget install --id Microsoft.AzureCLI --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.Azd --accept-package-agreements --accept-source-agreements
+winget install --id Git.Git --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.VisualStudioCode --accept-package-agreements --accept-source-agreements
+winget install --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.PowerShell --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.msodbcsql.18 --accept-package-agreements --accept-source-agreements
+winget install --id Python.Python.3.13 --accept-package-agreements --accept-source-agreements
+winget install --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install azure-cli azd git docker python@3.13 node powershell
+brew install --cask visual-studio-code docker
+# ODBC Driver 18:
+brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+brew install msodbcsql18
+```
+
+**Linux (Ubuntu/Debian):**
+
+```bash
+# Azure CLI
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# azd
+curl -fsSL https://aka.ms/install-azd.sh | bash
+
+# Outros
+sudo apt install -y git docker.io python3.13 nodejs npm
+sudo snap install code --classic
+
+# ODBC Driver 18
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+sudo apt update && sudo ACCEPT_EULA=Y apt install -y msodbcsql18
+```
+
+### Versões mínimas validadas
+
+| Ferramenta | Versão mínima | Função |
+|------------|---------------|--------|
+| **Azure CLI** | 2.60+ | Login Azure + comandos de role assignment |
+| **azd** (Azure Developer CLI) | 1.10+ | Provision + build + deploy automatizado |
+| **Git** | 2.40+ | Clone do repo |
+| **VSCode** | última | IDE |
+| **Docker Desktop** | última | Build das imagens (backend Python + tickets-service .NET) |
+| **PowerShell** | 7.4+ | Scripts pwsh (preflight, auth_init) |
+| **Python** | 3.13.x | `auth_init.py` no preprovision hook |
+| **Node.js** | 20 LTS+ | Build do frontend Vite |
+| **ODBC Driver 18 for SQL Server** | 18.x | `pyodbc` conexão com Azure SQL |
+
+### Custo esperado
+
+R$ 8-15 por sessão de 4-6h **se** você rodar `azd down --purge` no fim. Esquecer ligado 1 mês = R$ 80-120. **Não esqueça.**
 
 ---
 
