@@ -47,7 +47,7 @@ from quart_cors import cors
 from approaches.approach import Approach, DataPoints
 from approaches.chatreadretrieveread import ChatReadRetrieveReadApproach
 from approaches.promptmanager import PromptManager
-from blueprints import tickets_bp
+from blueprints import rag_chat_bp, tickets_bp
 from chat_history.cosmosdb import chat_history_cosmosdb_bp
 from config import (
     CONFIG_AGENTIC_KNOWLEDGEBASE_ENABLED,
@@ -290,6 +290,11 @@ def auth_setup():
     # v2.1.0 (Sessão 9.5, Wave 3.F): feature flag chat — frontend usa pra esconder
     # a aba "Chat" da nav quando false. Default false (aluno habilita no Lab Intermediário).
     setup["enableChat"] = os.environ.get("ENABLE_CHAT", "false").lower() == "true"
+    # Story 06.10 — Lab Intermediário Parte 8: feature flag RAG ChatPanel.
+    # Frontend usa para condicionalmente montar o <ChatPanel /> quando ?chat=1
+    # esta presente na URL. Default false — aluno habilita via param Bicep
+    # `ragEnabled=true` (ou env RAG_ENABLED=true direto no Container App).
+    setup["ragEnabled"] = os.environ.get("RAG_ENABLED", "false").lower() == "true"
     return jsonify(setup)
 
 
@@ -820,6 +825,7 @@ def create_app():
     app.register_blueprint(bp)
     app.register_blueprint(chat_history_cosmosdb_bp)
     app.register_blueprint(tickets_bp)  # HelpSphere — Story 06.5a Sessão 2.3
+    app.register_blueprint(rag_chat_bp)  # HelpSphere — Story 06.10 Lab Intermediário Parte 8
 
     if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         app.logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING is set, enabling Azure Monitor")

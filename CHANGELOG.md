@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [Unreleased]
+
+### Added — Story 06.10 Lab Intermediário Parte 8 (RAG ChatPanel + proxy)
+
+- **Bicep params** — `ragEnabled` (bool, default `false`), `ragFunctionUrl` (string), `ragFunctionKey` (secure string). Propagados como env vars `RAG_ENABLED` / `RAG_FUNCTION_URL` / `RAG_FUNCTION_KEY` no Container App backend (e nos AppSettings do App Service quando `deploymentTarget=appservice`).
+- **Backend `/chat/rag`** — novo blueprint (`app/backend/blueprints/rag_chat.py`) com proxy autenticado para a Function App externa de RAG criada na Parte 7 do Lab Intermediário. Gated por `RAG_ENABLED`; quando `false` retorna 503 didático. Quando `true`, faz POST para `${RAG_FUNCTION_URL}/api/tickets/eval/suggest` com `x-functions-key` e propaga JSON `{suggested_response, confidence, citations}`. Valida `app_tenant_id` (multi-tenant safe). Erros upstream propagam como 502.
+- **Backend `/auth_setup`** — agora expõe `ragEnabled` (lido de env `RAG_ENABLED`), espelhando o padrão de `enableChat`.
+- **Frontend `<ChatPanel />`** — painel flutuante (canto inferior direito) com formulário simples (ticket # + descrição), result box com sugestão + confidence + citações. Usa design tokens Apex Executivo. Inclui botão minimizar (vira FAB redondo) e fechar.
+- **Flag de runtime `?chat=1`** — Shell detecta query param tanto em `window.location.search` quanto em `location.hash` (HashRouter), e monta `<ChatPanel />` apenas quando `ragEnabled && enableChat && ?chat=1` simultaneamente — zero overhead nos demais casos.
+- **Tests** — `tests/test_rag_chat.py` com 12 cases (503 disabled, 415 não-JSON, 400 body inválido, 403 sem tenant claim, 500 quando URL ausente, 200/502 proxy success/error, trailing slash strip).
+
+### Notes
+
+- Endpoint `/api/tickets/{id}/suggest` permanece como stub 501 (path complementar para extensões futuras dentro do contexto do ticket); o proxy RAG vive em `/chat/rag` para evitar conflito com o `/chat` upstream do `azure-search-openai-demo`.
+- Guia do Lab Intermediário (linha 1796) cita `POST $BACKEND_URI/chat` — atualizar para `/chat/rag` na próxima passada de doc.
+
+---
+
 ## [v2.1.0] — 2026-05-05
 
 ### Sessões 9.4-9.5 — Setup Zero-Friction Production-Grade

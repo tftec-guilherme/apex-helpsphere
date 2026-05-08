@@ -440,6 +440,16 @@ param skipPrepdocs bool = false
 @description('Habilita chat na UI. Default false — chat e ativado no Lab Intermediario.')
 param enableChat bool = false
 
+@description('Habilita o painel RAG (ChatPanel + endpoint /chat/rag) consumindo a Function App externa configurada via ragFunctionUrl/ragFunctionKey. Default false — aluno ativa no Lab Intermediario (Parte 8) apos provisionar a Function App de RAG na Parte 7.')
+param ragEnabled bool = false
+
+@description('URL https da Function App externa de RAG (ex.: https://func-helpsphere-rag-xxxx.azurewebsites.net). Necessaria quando ragEnabled=true. Vazio em default.')
+param ragFunctionUrl string = ''
+
+@description('Function key da Function App externa de RAG (header x-functions-key). Necessaria quando ragEnabled=true. Vazio em default. Em producao, prefira referenciar Key Vault secret.')
+@secure()
+param ragFunctionKey string = ''
+
 @description('Audience format aceito pelo tickets-service. v2 (GUID) e o default; "v1" (api://) so para compat com tokens legacy.')
 @allowed(['v2', 'v1', 'both'])
 param tokenAudienceFormat string = 'v2'
@@ -647,6 +657,15 @@ var appEnvVariables = {
   // `scripts/run_prepdocs.{ps1,sh}` que lê de `azd env get-value SKIP_PREPDOCS`
   // durante o postprovision hook. Mapping no main.parameters.json basta.
   ENABLE_CHAT: enableChat
+  // HelpSphere — Story 06.10 Lab Intermediário (Parte 8)
+  // RAG_ENABLED + RAG_FUNCTION_URL + RAG_FUNCTION_KEY ativam o ChatPanel no
+  // frontend (via `?chat=1`) e o endpoint `/chat/rag` no backend Python que
+  // proxia para a Function App externa de RAG (criada na Parte 7 do Lab Inter).
+  // Default false/vazios — aluno ativa apos rodar `azd up` e provisionar
+  // manualmente a Function App de RAG (esta NAO faz parte do template).
+  RAG_ENABLED: ragEnabled
+  RAG_FUNCTION_URL: ragFunctionUrl
+  RAG_FUNCTION_KEY: ragFunctionKey
 }
 
 // App Service for the web application (Python Quart app with JS frontend)

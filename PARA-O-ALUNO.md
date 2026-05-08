@@ -333,6 +333,8 @@ A partir daqui, **cada lab é Portal-first manual** seguindo guias passo-a-passo
 | **Lab Avançado** (D06 IA produção) | CI/CD + APIM Developer + Content Safety + Azure Policy + circuit breaker | `Disciplina_06_*/01_Aulas/Lab_Avancado_IA_Producao_Guia_Portal.md` |
 
 > **Chat dormente:** rota `/chat` está oculta em v2.1.0. Você habilita no Lab Intermediário via Bicep param `enableChat=true` (que vira env var `ENABLE_CHAT=true`).
+>
+> **RAG ChatPanel dormente (Story 06.10 / Lab Inter Parte 8):** painel flutuante de chat RAG (canto inferior direito) é montado apenas quando (a) Bicep param `ragEnabled=true` (vira env var `RAG_ENABLED=true` + `RAG_FUNCTION_URL` + `RAG_FUNCTION_KEY` no Container App backend), (b) `enableChat=true` e (c) você adiciona `?chat=1` à URL. Endpoint do proxy: `POST /chat/rag` (proxia para a Function App externa criada na Parte 7 do guia). Sem esses 3 gates, o componente nem é renderizado — zero overhead.
 
 ---
 

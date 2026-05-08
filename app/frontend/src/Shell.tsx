@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
@@ -7,9 +7,10 @@ import { useMsal } from "@azure/msal-react";
 
 import { LoginButton } from "./components/LoginButton/LoginButton";
 import { BrandMark } from "./components/BrandMark/BrandMark";
+import { ChatPanel } from "./components/ChatPanel/ChatPanel";
 import { LoginGate } from "./components/LoginGate/LoginGate";
 import { LoginContext } from "./loginContext";
-import { useLogin, enableChat, checkLoggedIn } from "./authConfig";
+import { useLogin, enableChat, ragEnabled, checkLoggedIn } from "./authConfig";
 import styles from "./Shell.module.css";
 
 interface NavItem {
@@ -51,11 +52,64 @@ const resolvePageMeta = (pathname: string) => {
     return PAGE_META[pathname] || { title: "HelpSphere", subtitle: "Plataforma operacional Apex Group" };
 };
 
+/**
+ * Detecta a flag `?chat=1` (Lab Intermediário Parte 8 Opção A) tanto na query
+ * "verdadeira" do browser (`window.location.search`) quanto numa eventual
+ * query antes do hash (caso o aluno cole a URL com `?chat=1` no meio da
+ * navegação hash-based). HashRouter põe a rota em `location.hash`, então
+ * `location.search` da useLocation() costuma estar vazio — checamos ambos.
+ */
+const useChatQueryFlag = (): boolean => {
+    const [enabled, setEnabled] = useState<boolean>(() => readChatFlag());
+
+    useEffect(() => {
+        const handler = () => setEnabled(readChatFlag());
+        window.addEventListener("popstate", handler);
+        window.addEventListener("hashchange", handler);
+        return () => {
+            window.removeEventListener("popstate", handler);
+            window.removeEventListener("hashchange", handler);
+        };
+    }, []);
+
+    return enabled;
+};
+
+const readChatFlag = (): boolean => {
+    if (typeof window === "undefined") return false;
+    try {
+        const browserSearch = new URLSearchParams(window.location.search);
+        if (browserSearch.get("chat") === "1") return true;
+        const hash = window.location.hash || "";
+        const qIndex = hash.indexOf("?");
+        if (qIndex >= 0) {
+            const hashSearch = new URLSearchParams(hash.slice(qIndex + 1));
+            if (hashSearch.get("chat") === "1") return true;
+        }
+    } catch {
+        // ignore — flag fica false em ambientes exóticos
+    }
+    return false;
+};
+
 const ShellLayout = () => {
     const { t } = useTranslation();
     const location = useLocation();
     const meta = resolvePageMeta(location.pathname);
     const navSections = buildNav(enableChat);
+    const chatQueryActive = useChatQueryFlag();
+
+    // Story 06.10 — Lab Intermediário Parte 8: ChatPanel só monta quando todas
+    // estas condições são verdadeiras simultaneamente:
+    //   - ragEnabled (backend RAG_ENABLED=true em /auth_setup)
+    //   - enableChat (toggle global de chat — preserva consistência com nav)
+    //   - ?chat=1 presente na URL (Opção A do guia)
+    // Estado dormente preservado (zero overhead quando flags off).
+    const [chatPanelClosed, setChatPanelClosed] = useState<boolean>(false);
+    const chatPanelVisible = useMemo(
+        () => ragEnabled && enableChat && chatQueryActive && !chatPanelClosed,
+        [chatQueryActive, chatPanelClosed]
+    );
 
     const navLinkClass = ({ isActive }: { isActive: boolean }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`;
 
@@ -106,6 +160,7 @@ const ShellLayout = () => {
                     <Outlet />
                 </main>
             </div>
+            {chatPanelVisible && <ChatPanel onClose={() => setChatPanelClosed(true)} />}
         </div>
     );
 };

@@ -413,6 +413,15 @@
     "enableChat": {
       "value": "${ENABLE_CHAT=false}"
     },
+    "ragEnabled": {
+      "value": "${RAG_ENABLED=false}"
+    },
+    "ragFunctionUrl": {
+      "value": "${RAG_FUNCTION_URL=}"
+    },
+    "ragFunctionKey": {
+      "value": "${RAG_FUNCTION_KEY=}"
+    },
     "tokenAudienceFormat": {
       "value": "${TOKEN_AUDIENCE_FORMAT=v2}"
     },

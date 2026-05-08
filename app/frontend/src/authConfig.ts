@@ -56,6 +56,12 @@ interface AuthSetup {
     // Lab Intermediário (Wave 2): backend expõe `enableChat` em /auth_setup lido de
     // env ENABLE_CHAT. Default false — ativado via Bicep param `enableChat=true`.
     enableChat?: boolean;
+    // Story 06.10 — Lab Intermediário Parte 8: backend expõe `ragEnabled` em
+    // /auth_setup lido de env RAG_ENABLED. Default false — ativado via param
+    // Bicep `ragEnabled=true` apos a Function App de RAG ser provisionada
+    // (Parte 7 do guia). Frontend usa para montar <ChatPanel /> quando
+    // `?chat=1` esta presente na URL.
+    ragEnabled?: boolean;
 }
 
 // Fetch the auth setup JSON data from the API if not already cached
@@ -82,6 +88,12 @@ export const ticketsApiBase = (authSetup.ticketsApiBase ?? "").replace(/\/+$/, "
 // Backend Wave 2 expõe `enableChat` em /auth_setup (lido de env ENABLE_CHAT).
 // Default false — chat é ativado no Lab Intermediário via Bicep param `enableChat=true`.
 export const enableChat = authSetup.enableChat === true;
+
+// Story 06.10 — Lab Intermediário Parte 8: backend expõe `ragEnabled` em
+// /auth_setup (lido de env RAG_ENABLED). Default false — RAG ChatPanel é
+// ativado por (a) `ragEnabled=true` no Bicep + Function App de RAG provisionada
+// (Parte 7 do guia) AND (b) usuário adicionar `?chat=1` na URL (Parte 8 Opção A).
+export const ragEnabled = authSetup.ragEnabled === true;
 
 /**
  * Configuration object to be passed to MSAL instance on creation.

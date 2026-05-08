@@ -1,0 +1,218 @@
+/* ChatPanel — Lab Intermediário (Story 06.10 Parte 8). */
+/* Floating panel canto inferior direito; usa design tokens Apex Executivo. */
+
+.panel {
+    position: fixed;
+    right: var(--space-6, 24px);
+    bottom: var(--space-6, 24px);
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(560px, calc(100vh - 80px));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+    padding: var(--space-4, 16px);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-fg, #1a1f2e);
+    border: 1px solid var(--color-border, #e2e6ee);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+    z-index: 60;
+    overflow: auto;
+}
+
+.fab {
+    position: fixed;
+    right: var(--space-6, 24px);
+    bottom: var(--space-6, 24px);
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border, #e2e6ee);
+    background: var(--color-accent, #2563eb);
+    color: #ffffff;
+    font-family: var(--font-body, system-ui);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    z-index: 60;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.22);
+}
+
+.fab:hover {
+    transform: translateY(-1px);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-2, 8px);
+}
+
+.headerText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kicker {
+    font-family: var(--font-body, system-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted, #4a5468);
+}
+
+.title {
+    font-family: var(--font-display, "Fraunces", serif);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.headerActions {
+    display: flex;
+    gap: 4px;
+}
+
+.iconButton {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border, #e2e6ee);
+    background: transparent;
+    color: var(--color-fg-muted, #4a5468);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.iconButton:hover {
+    background: var(--color-surface-muted, #f4f6fa);
+    color: var(--color-fg, #1a1f2e);
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+}
+
+.label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body, system-ui);
+    font-size: 13px;
+    color: var(--color-fg-muted, #4a5468);
+    font-weight: 500;
+}
+
+.input,
+.textarea {
+    font-family: var(--font-body, system-ui);
+    font-size: 14px;
+    color: var(--color-fg, #1a1f2e);
+    padding: 8px 10px;
+    border: 1px solid var(--color-border, #e2e6ee);
+    border-radius: 6px;
+    background: var(--color-surface, #ffffff);
+    resize: vertical;
+}
+
+.input:focus,
+.textarea:focus {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: 1px;
+    border-color: transparent;
+}
+
+.input:disabled,
+.textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.submit {
+    align-self: flex-start;
+    padding: 8px 14px;
+    font-family: var(--font-body, system-ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    background: var(--color-accent, #2563eb);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.submit:hover {
+    filter: brightness(0.95);
+}
+
+.submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.errorBox {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--color-danger-bg, #fdecec);
+    color: var(--color-danger-fg, #8a1f1b);
+    font-family: var(--font-body, system-ui);
+    font-size: 13px;
+    line-height: 1.45;
+    border: 1px solid var(--color-danger-border, #f5c2bf);
+}
+
+.resultBox {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 8px);
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--color-surface-muted, #f4f6fa);
+    border: 1px solid var(--color-border, #e2e6ee);
+}
+
+.resultText {
+    margin: 0;
+    font-family: var(--font-body, system-ui);
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--color-fg, #1a1f2e);
+    white-space: pre-wrap;
+}
+
+.confidence {
+    margin: 0;
+    font-family: var(--font-body, system-ui);
+    font-size: 12px;
+    color: var(--color-fg-muted, #4a5468);
+}
+
+.citations {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-body, system-ui);
+    font-size: 12px;
+    color: var(--color-fg-muted, #4a5468);
+}
+
+.citationSource {
+    font-weight: 600;
+    color: var(--color-fg, #1a1f2e);
+}
+
+.citationPage {
+    color: var(--color-fg-muted, #4a5468);
+}
