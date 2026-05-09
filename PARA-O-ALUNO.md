@@ -326,13 +326,15 @@ Write-Host "Reset completo. Volte para o Step 3 (Login Azure)."
 
 A partir daqui, **cada lab é Portal-first manual** seguindo guias passo-a-passo. Você não precisa do `apex-helpsphere` rodando para fazê-los — cada lab cria seus próprios recursos isolados.
 
-| Lab | Você adiciona | Guia |
-|-----|---------------|------|
-| **Lab Intermediário** (M02-M05) | Pipeline RAG: Document Intelligence + AI Search + chat com citations | `Disciplina_06_*/01_Aulas/Lab_Intermediario_RAG_HelpSphere_Guia_Portal.md` |
-| **Lab Final** (M06) | Agentes Foundry + canal de voz Speech STT/TTS + n8n | `Disciplina_06_*/01_Aulas/Lab_Final_Agente_Workflow_Guia_Portal.md` |
-| **Lab Avançado** (D06 IA produção) | CI/CD + APIM Developer + Content Safety + Azure Policy + circuit breaker | `Disciplina_06_*/01_Aulas/Lab_Avancado_IA_Producao_Guia_Portal.md` |
+| Lab | Você adiciona | Repo companion (clone + `azd up`) | Guia |
+|-----|---------------|----------------------------------|------|
+| **Lab Intermediário** (M02-M05) | Pipeline RAG: Document Intelligence + AI Search + chat com citations | [`apex-rag-lab`](https://github.com/tftec-guilherme/apex-rag-lab) | `Disciplina_06_*/01_Aulas/Lab_Intermediario_RAG_HelpSphere_Guia_Portal.md` |
+| **Lab Final** (M06) | Agentes Foundry + canal de voz Speech STT/TTS + n8n | [`apex-helpsphere-agente-lab`](https://github.com/tftec-guilherme/apex-helpsphere-agente-lab) | `Disciplina_06_*/01_Aulas/Lab_Final_Agente_Workflow_Guia_Portal.md` |
+| **Lab Avançado** (D06 IA produção) | CI/CD + APIM Developer + Content Safety + Azure Policy + circuit breaker | [`apex-helpsphere-prod-lab`](https://github.com/tftec-guilherme/apex-helpsphere-prod-lab) | `Disciplina_06_*/01_Aulas/Lab_Avancado_IA_Producao_Guia_Portal.md` |
 
-> **Chat dormente:** rota `/chat` está oculta em v2.1.0. Você habilita no Lab Intermediário via Bicep param `enableChat=true` (que vira env var `ENABLE_CHAT=true`).
+> **⚠️ Pivot pedagógico (Story 06.10, 2026-05-08):** cada Lab D06 que mexe na aplicação tem seu **repo companion próprio, fork funcional do `apex-helpsphere`** com as modificações específicas do lab pré-aplicadas. Você **clona o repo do lab que está cursando** e faz `azd up` direto lá — não precisa fazer fork deste `apex-helpsphere` base nem aplicar mods manualmente. Este `apex-helpsphere/main` é o **template limpo de referência arquitetural** apenas.
+>
+> **Chat dormente neste template base:** a rota `/chat` (chat nativo do upstream `azure-search-openai-demo`) está oculta. Para ligar (no caso de uso fora dos labs), use Bicep param `enableChat=true` → env var `ENABLE_CHAT=true`. **Para RAG corporativo do Lab Intermediário, clone o `apex-rag-lab` — ele já tem env vars `RAG_ENABLED`, `<ChatPanel />`, flag `?chat=1` e endpoint `/chat/rag` proxy implementados.**
 
 ---
 
