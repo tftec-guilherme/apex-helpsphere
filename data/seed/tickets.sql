@@ -48,7 +48,7 @@ VALUES
 -- TKT-1 — Apex Tech
 ('22222222-2222-2222-2222-222222222222',
  N'Devolução de geladeira fora do prazo de 7 dias do CDC',
- N'Cliente comprou geladeira Brastemp BRM69 em 12/03 e abriu chamado em 25/03 pedindo devolução por desistência. Já passou do prazo CDC de 7 dias para arrependimento. Vendedor pede orientação se aplicamos política comercial interna mais flexível ou negamos. [KB] sample-kb politica-devolucoes.pdf',
+ N'Cliente comprou geladeira Brastemp BRM69 em 12/03 e abriu chamado em 25/03 pedindo devolução por desistência. Já passou do prazo CDC de 7 dias para arrependimento. Vendedor pede orientação se aplicamos política comercial interna mais flexível ou negamos. [KB] kbai faq_pedidos_devolucao.pdf',
  'Comercial', 'InProgress', 'Medium', DATEADD(day, -8, SYSUTCDATETIME())),
 
 -- TKT-2 — Apex Moda
@@ -60,13 +60,13 @@ VALUES
 -- TKT-3 — Apex Mercado
 ('11111111-1111-1111-1111-111111111111',
  N'NFe de pedido B2B rejeitada — Rejeição 539 (CFOP incompatível)',
- N'Restaurante cliente PJ (CNPJ 12.345.678/0001-90) fez pedido B2B de R$ 18.430 em hortifruti + bebidas. NFe emitida mas SEFAZ-SP retornou rejeição 539. Pedido travado na expedição há 4h. Cliente cobra entrega para almoço de amanhã. [KB] sample-kb nfe-rejeicoes-comuns.pdf',
+ N'Restaurante cliente PJ (CNPJ 12.345.678/0001-90) fez pedido B2B de R$ 18.430 em hortifruti + bebidas. NFe emitida mas SEFAZ-SP retornou rejeição 539. Pedido travado na expedição há 4h. Cliente cobra entrega para almoço de amanhã. [KB] kbai runbook_sap_fi_integracao.pdf',
  'Comercial', 'InProgress', 'High', DATEADD(day, -1, SYSUTCDATETIME())),
 
 -- TKT-4 — Apex Casa
 ('44444444-4444-4444-4444-444444444444',
  N'Solicitação de extensão de garantia em sofá retrátil',
- N'Cliente comprou sofá retrátil em 09/2025 (garantia de fábrica 1 ano). Solicita contratação de extensão de garantia adicional de 2 anos. Quer saber valor, cobertura (mecanismo retrátil incluído?) e prazo de carência. [KB] sample-kb garantias-estendidas.pdf',
+ N'Cliente comprou sofá retrátil em 09/2025 (garantia de fábrica 1 ano). Solicita contratação de extensão de garantia adicional de 2 anos. Quer saber valor, cobertura (mecanismo retrátil incluído?) e prazo de carência. [KB] kbai faq_pedidos_devolucao.pdf',
  'Comercial', 'Open', 'Low', DATEADD(day, -5, SYSUTCDATETIME())),
 
 -- TKT-5 — Apex Logística
@@ -102,7 +102,7 @@ VALUES
 -- TKT-10 — Apex Tech
 ('22222222-2222-2222-2222-222222222222',
  N'Cancelamento de venda parcelada após 28h (fora prazo de 24h)',
- N'Cliente comprou Smart TV 65" parcelada em 12x via cartão Itaú no app. Pediu cancelamento após 28h alegando que não viu boleto/parcelamento. CDC garante 7 dias para arrependimento em compras online. Política interna prevê cancelamento simples até 24h — após disso requer escalonamento. [KB] sample-kb politica-devolucoes.pdf',
+ N'Cliente comprou Smart TV 65" parcelada em 12x via cartão Itaú no app. Pediu cancelamento após 28h alegando que não viu boleto/parcelamento. CDC garante 7 dias para arrependimento em compras online. Política interna prevê cancelamento simples até 24h — após disso requer escalonamento. [KB] kbai faq_pedidos_devolucao.pdf',
  'Comercial', 'InProgress', 'Medium', DATEADD(day, -6, SYSUTCDATETIME())),
 
 -- -----------------------------------------------------------------------------
@@ -112,13 +112,13 @@ VALUES
 -- TKT-11 — Apex Mercado
 ('11111111-1111-1111-1111-111111111111',
  N'POS da loja Pinheiros travando ao emitir NFC-e (3 ocorrências/dia)',
- N'Caixa 03 da loja Pinheiros: ao emitir NFC-e em vendas com mais de 8 itens, o aplicativo do PDV congela por 30-45s e às vezes precisa reiniciar. Aconteceu 3x ontem em horário de pico. Suspeita: timeout na chamada SEFAZ-SP. Loja perde transações. [KB] sample-kb troubleshooting-pdv.pdf',
+ N'Caixa 03 da loja Pinheiros: ao emitir NFC-e em vendas com mais de 8 itens, o aplicativo do PDV congela por 30-45s e às vezes precisa reiniciar. Aconteceu 3x ontem em horário de pico. Suspeita: timeout na chamada SEFAZ-SP. Loja perde transações. [KB] kbai manual_pos_funcionamento.pdf',
  'TI', 'InProgress', 'Medium', DATEADD(day, -2, SYSUTCDATETIME())),
 
 -- TKT-12 — Apex Tech (CRITICAL)
 ('22222222-2222-2222-2222-222222222222',
  N'CRÍTICO: Integração ERP↔Magento falhando em 18% dos pedidos',
- N'Desde 03h da madrugada de ontem, 18% dos pedidos do e-commerce não estão sendo gravados no ERP TOTVS. Pedidos ficam "pending sync" e estoque não é baixado. Risco: overselling em produtos com baixo estoque. Time de TI já identificou que message broker (RabbitMQ) está rejeitando mensagens com payload acima de 256KB. Engenharia trabalhando em fix. [KB] sample-kb arquitetura-integracao.pdf',
+ N'Desde 03h da madrugada de ontem, 18% dos pedidos do e-commerce não estão sendo gravados no ERP TOTVS. Pedidos ficam "pending sync" e estoque não é baixado. Risco: overselling em produtos com baixo estoque. Time de TI já identificou que message broker (RabbitMQ) está rejeitando mensagens com payload acima de 256KB. Engenharia trabalhando em fix. [KB] kbai runbook_sap_fi_integracao.pdf',
  'TI', 'InProgress', 'Critical', DATEADD(day, -1, SYSUTCDATETIME())),
 
 -- TKT-13 — Apex Moda
@@ -130,7 +130,7 @@ VALUES
 -- TKT-14 — Apex Casa
 ('44444444-4444-4444-4444-444444444444',
  N'Erro ao gerar SPED Fiscal de mês fechado (referência 09/2026)',
- N'Contabilidade tentou gerar SPED Fiscal de setembro/2026 (mês já encerrado em ERP) e o sistema retorna "Erro: registro D100 com inconsistência de CFOP". Validação PVA-SPED da Receita rejeita o arquivo. Prazo legal de transmissão: dia 25/10. Restam 4 dias úteis. [KB] sample-kb sped-fiscal-troubleshooting.pdf',
+ N'Contabilidade tentou gerar SPED Fiscal de setembro/2026 (mês já encerrado em ERP) e o sistema retorna "Erro: registro D100 com inconsistência de CFOP". Validação PVA-SPED da Receita rejeita o arquivo. Prazo legal de transmissão: dia 25/10. Restam 4 dias úteis. [KB] kbai politica_reembolso_lojista.pdf',
  'TI', 'InProgress', 'Medium', DATEADD(day, -3, SYSUTCDATETIME())),
 
 -- TKT-15 — Apex Logística
@@ -154,7 +154,7 @@ VALUES
 -- TKT-18 — Apex Moda (CRITICAL)
 ('33333333-3333-3333-3333-333333333333',
  N'CRÍTICO RESOLVIDO: Site institucional fora do ar 47min na Black Friday',
- N'Site apexmoda.com.br ficou fora do ar de 23h13 a 00h00 da Black Friday 2025 (47min). Causa: pico de tráfego excedeu auto-scaling do App Service (B3) configurado para max 10 instâncias quando o pico atingiu carga equivalente a ~17 instâncias. Marketing estima R$ 1.8M de GMV perdido. Postmortem documentado, scaling reconfigurado para max 30 + warm pool. [KB] sample-kb postmortem-blackfriday-2025.pdf',
+ N'Site apexmoda.com.br ficou fora do ar de 23h13 a 00h00 da Black Friday 2025 (47min). Causa: pico de tráfego excedeu auto-scaling do App Service (B3) configurado para max 10 instâncias quando o pico atingiu carga equivalente a ~17 instâncias. Marketing estima R$ 1.8M de GMV perdido. Postmortem documentado, scaling reconfigurado para max 30 + warm pool. [KB] kbai runbook_problemas_rede.pdf',
  'TI', 'Resolved', 'Critical', DATEADD(day, -55, SYSUTCDATETIME())),
 
 -- TKT-19 — Apex Casa
@@ -194,7 +194,7 @@ VALUES
 -- TKT-24 — Apex Casa
 ('44444444-4444-4444-4444-444444444444',
  N'Caminhão de móveis com 4h de atraso na doca CD-Cajamar',
- N'Caminhão de fornecedor (Tok&Stok) agendado para 08h chegou às 12h. Doca já estava ocupada com outras descargas. Operação atrasada em cascata. Custo estimado de hora-parada: R$ 380. Política contratual prevê cobrança de demurrage após 2h. [KB] sample-kb politica-doca-recebimento.pdf',
+ N'Caminhão de fornecedor (Tok&Stok) agendado para 08h chegou às 12h. Doca já estava ocupada com outras descargas. Operação atrasada em cascata. Custo estimado de hora-parada: R$ 380. Política contratual prevê cobrança de demurrage após 2h. [KB] kbai manual_operacao_loja_v3.pdf',
  'Operacional', 'Open', 'Medium', DATEADD(day, -1, SYSUTCDATETIME())),
 
 -- TKT-25 — Apex Logística
@@ -240,7 +240,7 @@ VALUES
 -- TKT-31 — Apex Mercado
 ('11111111-1111-1111-1111-111111111111',
  N'Funcionária pede troca de turno por motivo médico (gravidez de risco)',
- N'Operadora de caixa do turno noturno apresentou atestado de gravidez de risco recomendando turno diurno. Loja precisa rebalancear escala — turno noturno com 1 vaga a cobrir. Política interna prevê transferência prioritária nesses casos. Encaminhar para coordenação de loja + RH-Folha. [KB] sample-kb politicas-rh-gestacao.pdf',
+ N'Operadora de caixa do turno noturno apresentou atestado de gravidez de risco recomendando turno diurno. Loja precisa rebalancear escala — turno noturno com 1 vaga a cobrir. Política interna prevê transferência prioritária nesses casos. Encaminhar para coordenação de loja + RH-Folha. [KB] kbai politica_dados_lgpd.pdf',
  'RH', 'Open', 'Low', DATEADD(day, -2, SYSUTCDATETIME())),
 
 -- TKT-32 — Apex Tech
@@ -334,7 +334,7 @@ VALUES
 -- TKT-46 — Apex Mercado
 ('11111111-1111-1111-1111-111111111111',
  N'Dúvida sobre retenção de IRRF + INSS sobre serviço de TI (PJ)',
- N'Contratação de consultoria de TI (CNPJ MEI) para integração de sistemas — valor R$ 12.500. Fiscal pediu orientação sobre retenções aplicáveis. MEI tem regras específicas de retenção de IRRF (1,5%) e INSS (11% se serviço de natureza específica). Necessário confirmar enquadramento exato antes do pagamento. [KB] sample-kb retencoes-tributarias-pj.pdf',
+ N'Contratação de consultoria de TI (CNPJ MEI) para integração de sistemas — valor R$ 12.500. Fiscal pediu orientação sobre retenções aplicáveis. MEI tem regras específicas de retenção de IRRF (1,5%) e INSS (11% se serviço de natureza específica). Necessário confirmar enquadramento exato antes do pagamento. [KB] kbai politica_reembolso_lojista.pdf',
  'Financeiro', 'Open', 'Low', DATEADD(day, -4, SYSUTCDATETIME())),
 
 -- TKT-47 — Apex Tech
@@ -346,7 +346,7 @@ VALUES
 -- TKT-48 — Apex Moda
 ('33333333-3333-3333-3333-333333333333',
  N'SPED Contribuições — registro M210 inconsistente (PIS/COFINS)',
- N'PVA-SPED Contribuições rejeitou arquivo de março/2026 com erro no registro M210 (apuração PIS não cumulativo). Diferença identificada: R$ 12.300 a maior na base de cálculo de créditos. Resolvido: ajuste retroativo + transmissão dentro do prazo (25/04). Causa: parametrização de CFOP de devolução. [KB] sample-kb sped-contribuicoes-erros.pdf',
+ N'PVA-SPED Contribuições rejeitou arquivo de março/2026 com erro no registro M210 (apuração PIS não cumulativo). Diferença identificada: R$ 12.300 a maior na base de cálculo de créditos. Resolvido: ajuste retroativo + transmissão dentro do prazo (25/04). Causa: parametrização de CFOP de devolução. [KB] kbai politica_reembolso_lojista.pdf',
  'Financeiro', 'Resolved', 'Medium', DATEADD(day, -12, SYSUTCDATETIME())),
 
 -- TKT-49 — Apex Casa
