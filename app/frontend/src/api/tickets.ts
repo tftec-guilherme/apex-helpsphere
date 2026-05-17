@@ -70,7 +70,10 @@ export async function getTicketApi(ticketId: number, idToken: string | undefined
     if (!response.ok) {
         throw new Error(await readErrorMessage(response, `Loading ticket ${ticketId} failed: ${response.statusText}`));
     }
-    return (await response.json()) as TicketDetail;
+    // .NET tickets-service retorna { ticket: {...}, comments: [...], tenant: {...} }.
+    // Frontend espera FLAT (TicketDetail extends Ticket). Flatten aqui pra preservar contract.
+    const raw = (await response.json()) as { ticket: Ticket; comments: TicketComment[]; tenant: Tenant };
+    return { ...raw.ticket, comments: raw.comments ?? [], tenant: raw.tenant } as TicketDetail;
 }
 
 /**

@@ -65,6 +65,9 @@ def _resolve_tenant_id(auth_claims: dict[str, Any]) -> str:
             if k.endswith("app_tenant_id") and v:
                 tenant_id = v
                 break
+    # Entra ID emite directory extensions como array (multi-valued claim). Coerce ao primeiro item.
+    if isinstance(tenant_id, list):
+        tenant_id = tenant_id[0] if tenant_id else None
     if not tenant_id:
         logger.warning(
             "JWT sem claim app_tenant_id (nem forma extension_*) | sub=%s | name=%s",
