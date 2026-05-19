@@ -6,10 +6,6 @@
 
 Pós-Graduação Avançada de Cloud com Azure · Disciplina 06.
 
-[![Bicep validation](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev-validation.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/azure-dev-validation.yaml)
-[![.NET](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/dotnet-test.yaml)
-[![Frontend](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/frontend.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/frontend.yaml)
-[![Python](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/python-test.yaml/badge.svg?branch=main)](https://github.com/tftec-guilherme/apex-helpsphere/actions/workflows/python-test.yaml)
 [![Release](https://img.shields.io/github/v/release/tftec-guilherme/apex-helpsphere?include_prereleases&color=0078D4)](https://github.com/tftec-guilherme/apex-helpsphere/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
