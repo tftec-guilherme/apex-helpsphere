@@ -739,11 +739,15 @@ module acaBackend 'core/host/container-app-upsert.bicep' = if (deploymentTarget 
       // do tickets-service .NET pelos clientes legacy.
       TICKETS_BACKEND_URI: (deploymentTarget == 'containerapps') ? acaTickets!.outputs.uri : ''
     })
-    secrets: useAuthentication ? {
+    // Story 06.29 (AC4): defensive Bicep — only emit secrets/envSecrets when
+    // BOTH client/server secrets are non-empty. Prevents `ContainerAppSecretInvalid`
+    // in retry scenarios where azd env has `AZURE_USE_AUTHENTICATION=true` but the
+    // bootstrap secrets remained unset (e.g., auth_init.py aborted mid-flight).
+    secrets: (useAuthentication && !empty(clientAppSecret) && !empty(serverAppSecret)) ? {
       azureclientappsecret: clientAppSecret
       azureserverappsecret: serverAppSecret
     } : {}
-    envSecrets: useAuthentication ? [
+    envSecrets: (useAuthentication && !empty(clientAppSecret) && !empty(serverAppSecret)) ? [
       {
         name: 'AZURE_CLIENT_APP_SECRET'
         secretRef: 'azureclientappsecret'

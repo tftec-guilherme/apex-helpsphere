@@ -525,13 +525,37 @@ async def ensure_oauth2_grant(
 async def main() -> None:  # pragma: no cover
     load_azd_env()
 
+    # AC2 (Story 06.29): guard clause — abort cleanly when auth disabled, no side effects.
     if not test_authentication_enabled():
         print("AZURE_USE_AUTHENTICATION is not true — skipping auth_init.")
         return
 
+    # AC1/AC2 (Story 06.29): auto-detect tenant via `az account show` when not set
+    # in azd env. Replaces the hard `raise SystemExit` so first-time `azd up` no
+    # longer aborts when the student never exported AZURE_AUTH_TENANT_ID.
     auth_tenant = (os.getenv("AZURE_AUTH_TENANT_ID") or os.getenv("AZURE_TENANT_ID") or "").strip()
     if not auth_tenant:
-        raise SystemExit("Error: No tenant ID set. Set AZURE_AUTH_TENANT_ID or AZURE_TENANT_ID in your azd env.")
+        print("[auth_init] AZURE_AUTH_TENANT_ID nao setado — detectando via 'az account show'...")
+        try:
+            result = subprocess.run(
+                ["az", "account", "show", "--query", "tenantId", "-o", "tsv"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=15,
+            )
+            auth_tenant = result.stdout.strip()
+            if not auth_tenant:
+                raise RuntimeError("az account show retornou tenantId vazio")
+            print(f"[auth_init] Tenant detectado automaticamente: {auth_tenant}")
+            # Persist for subsequent re-runs (avoids re-detecting on every azd up).
+            update_azd_env("AZURE_AUTH_TENANT_ID", auth_tenant)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, RuntimeError) as exc:
+            # AC6 (Story 06.29): mensagem PT-BR para aluno sem `az login` ainda.
+            print("[auth_init] Voce nao esta autenticado no Azure CLI (ou az nao esta no PATH).")
+            print("[auth_init] Execute: az login && azd auth login")
+            print("[auth_init] Depois rode novamente: azd up")
+            raise SystemExit(1) from exc
 
     print(f"[auth_init] Setting up authentication for tenant {auth_tenant}")
     credential = AzureDeveloperCliCredential(tenant_id=auth_tenant)
@@ -595,6 +619,11 @@ async def main() -> None:  # pragma: no cover
     # ------------------------------------------------------------------
     # 4. Final state to azd env
     # ------------------------------------------------------------------
+    # AC3 (Story 06.29): atomicity invariant — AZURE_USE_AUTHENTICATION="true" is
+    # written ONLY AFTER all `ensure_secret` + Graph PATCH calls succeed. Any
+    # exception above propagates and aborts before this write, so retry scenarios
+    # never observe `USE_AUTH=true` with empty client/server secrets. Do not wrap
+    # `ensure_secret` calls in try/except — exceptions must propagate.
     update_azd_env("AZURE_USE_AUTHENTICATION", "true")
     print(
         json.dumps(
