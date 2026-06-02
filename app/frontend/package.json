@@ -17,7 +17,7 @@
     "@azure/msal-react": "^3.0.16",
     "@fluentui/react-components": "^9.73.3",
     "@fluentui/react-icons": "^2.0.319",
-    "@fluentui/react-table": "^9.19.14",
+    "@fluentui/react-table": "^9.19.16",
     "@fontsource-variable/inter-tight": "^5.2.7",
     "@fontsource/fraunces": "^5.2.9",
     "@fontsource/jetbrains-mono": "^5.2.8",
