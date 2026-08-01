@@ -85,7 +85,7 @@ cffi==2.0.0
     # via cryptography
 charset-normalizer==3.3.2
     # via requests
-click==8.3.2
+click==8.4.2
     # via
     #   flask
     #   quart
@@ -350,7 +350,7 @@ pypdf==6.10.2
     # via -r requirements.in
 python-dotenv==1.2.2
     # via -r requirements.in
-quart==0.20.0
+quart==0.21.0
     # via
     #   -r requirements.in
     #   quart-cors
